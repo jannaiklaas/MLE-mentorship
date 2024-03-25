@@ -1,0 +1,9 @@
+{
+    "general": {
+        "random_state": 42,
+        "infer_size": 0.1,
+        "data_dir": "data",
+        "models_dir": "models",
+        "results_dir": "results"
+    }
+}
