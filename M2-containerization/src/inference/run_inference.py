@@ -1,5 +1,6 @@
 import os
 import sys
+import json
 import logging
 import numpy as np
 from keras.models import load_model
@@ -8,17 +9,24 @@ from keras.models import load_model
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.append(ROOT_DIR)
 
+CONF_FILE = os.path.join(ROOT_DIR, 'settings.json')
+
+# Load configuration settings from JSON
+with open(CONF_FILE, "r") as file:
+    conf = json.load(file)
+
 from src.preprocess import preprocess_images
 from src.train.train import evaluate_model
 from src.utils import set_seed
 
-INFERENCE_DIR = os.path.join(ROOT_DIR, 'data', 'inference')
-INFERENCE_IMAGES_PATH = os.path.join(INFERENCE_DIR, 'inference_images.npy')
-INFERENCE_LABELS_PATH = os.path.join(INFERENCE_DIR, 'inference_labels.npy')
-MODEL_DIR = os.path.join(ROOT_DIR, 'models')
-RESULTS_DIR = os.path.join(ROOT_DIR, 'results')
+DATA_DIR = os.path.join(ROOT_DIR, conf['directories']['data'])
+INFERENCE_DIR = os.path.join(DATA_DIR, conf['directories']['inference_data'])
+INFERENCE_IMAGES_PATH = os.path.join(INFERENCE_DIR, conf['files']['inference_images'])
+INFERENCE_LABELS_PATH = os.path.join(INFERENCE_DIR, conf['files']['inference_labels'])
+MODEL_DIR = os.path.join(ROOT_DIR, conf['directories']['models'])
+RESULTS_DIR = os.path.join(ROOT_DIR, conf['directories']['results'])
 
-def get_model(model_name: str = 'model_1.keras'):
+def get_model(model_name=conf['model']['name']+conf['model']['extension']):
     """Loads and returns a trained model."""
     logging.info("Loading the pretrained model...")
     model_path = os.path.join(MODEL_DIR, model_name)  # Adjusted for directory path

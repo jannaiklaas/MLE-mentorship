@@ -1,6 +1,7 @@
 # Import libraries
 import requests
 import os
+import json
 import logging
 import sys
 import shutil
@@ -14,12 +15,17 @@ from sklearn.model_selection import train_test_split
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(ROOT_DIR)
 
+CONF_FILE = os.path.join(ROOT_DIR, 'settings.json')
+# Load configuration settings from JSON
+with open(CONF_FILE, "r") as file:
+    conf = json.load(file)
+
 from src.utils import set_seed
 
-DATA_DIR = os.path.join(ROOT_DIR, 'data')
-RAW_DATA_DIR = os.path.join(DATA_DIR, 'raw')
-TRAIN_DIR = os.path.join(DATA_DIR, 'train')
-INFERENCE_DIR = os.path.join(DATA_DIR, 'inference')
+DATA_DIR = os.path.join(ROOT_DIR, conf['directories']['data'])
+RAW_DATA_DIR = os.path.join(DATA_DIR, conf['directories']['raw_data'])
+TRAIN_DIR = os.path.join(DATA_DIR, conf['directories']['train_data'])
+INFERENCE_DIR = os.path.join(DATA_DIR, conf['directories']['inference_data'])
 
 from src.utils import set_seed
 
@@ -28,8 +34,8 @@ logger = logging.getLogger(__name__)
 
 # URL for datasets
 DATA_URLS = {
-    "yes": "https://raw.githubusercontent.com/jannaiklaas/datasets/main/brain_tumor_dataset/yes.zip",
-    "no": "https://raw.githubusercontent.com/jannaiklaas/datasets/main/brain_tumor_dataset/no.zip"
+    "yes": conf['urls']['data_yes'],
+    "no": conf['urls']['data_no']
 }
 
 # Define methods
@@ -46,7 +52,7 @@ def download_file(url: str, filename: str) -> None:
         response = requests.get(url, stream=True)
         response.raise_for_status()  # Raise an exception for HTTP errors
         with open(filename, 'wb') as file:
-            for chunk in response.iter_content(chunk_size=8192):
+            for chunk in response.iter_content(chunk_size=conf['general']['chunk_size']):
                 file.write(chunk)
         logger.info(f"Downloaded and saved file: {filename}")
     except requests.exceptions.RequestException as e:
@@ -102,8 +108,11 @@ def load_split_data() -> None:
     all_data = tumor + no_tumor
     X = np.array([item[0] for item in all_data])
     y = np.array([item[1] for item in all_data])
-    X_shuffled, y_shuffled = shuffle(X, y, random_state=42)
-    X_train, X_inference, y_train, y_inference = train_test_split(X_shuffled, y_shuffled, test_size=0.1, random_state=42)
+    X_shuffled, y_shuffled = shuffle(X, y, random_state=conf['general']['seed_value'])
+    X_train, X_inference, y_train, y_inference = train_test_split(X_shuffled, 
+                                                                  y_shuffled, 
+                                                                  test_size=conf['inference']['infer_size'], 
+                                                                  random_state=conf['general']['seed_value'])
     logger.info(f"Training set contains {X_train.shape[0]} images")
     logger.info(f"Inference set contains {X_inference.shape[0]} images")
 

@@ -1,0 +1,5 @@
+FROM ubuntu:22.04
+
+ARG USER_ID
+ARG GROUP_ID
+
