@@ -108,10 +108,12 @@ def evaluate_model(model, X, y_true, set_name,
     logging.info("Saving performance metrics...")
     if not os.path.exists(RESULTS_DIR):
         os.makedirs(RESULTS_DIR)
+        os.chmod(RESULTS_DIR, 0o775)
     path = os.path.join(RESULTS_DIR, conf['files']['metrics_file'])
     metrics_str = "\n".join([f"{key}: {value}" for key, value in metrics.items()])
     with open(path, "a") as file:
         file.write(metrics_str + "\n\n")
+    os.chmod(path, 0o664)
     logging.info(f"Metrics saved to {path}")
 
 def save_model(model, path, model_name=conf['model']['name']+conf['model']['extension']) -> None:
@@ -119,11 +121,14 @@ def save_model(model, path, model_name=conf['model']['name']+conf['model']['exte
     logging.info("Saving the model...")
     if not os.path.exists(path):
         os.makedirs(path)
+        os.chmod(path, 0o775)
     model_path = os.path.join(path, model_name)
-    model.save(model_path)  
+    model.save(model_path)
+    os.chmod(model_path, 0o664)  
     logging.info(f"Model saved to {model_path}")
 
 def main():
+    os.umask(0o002)
     set_seed(conf['general']['seed_value'])
     """Main method."""
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
