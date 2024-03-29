@@ -11,21 +11,13 @@
 
 6. Open a new Terminal/Powershell at "data-science-task" folder
 
-7. You will need "request" module to download data. If you do not have it installed, run the following command in your Terminal/Powershell:
+7. You will need a few modules to load the data from the remote server, namely `scikit_learn`, `opencv-python`, and `requests`. If you don't have those modules installed, you can install them from the "requirements.txt" file by running the following command:
 
-```bash
-pip install requests
-```
-Alternatively you can install it from the "requirements.txt" file:
 ```bash
 pip install -r "requirements.txt"
 ```
-If you are using Anaconda, then you can download the module by running this code:
-```bash
-conda install requests
-```
 
-8. Download the raw data by running this code in Terminal/Powershell:
+8. Download the data by running this code in Terminal/Powershell:
 ```bash
 python3 src/data_loader.py
 ```
