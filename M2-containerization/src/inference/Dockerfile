@@ -27,11 +27,10 @@ USER user
 WORKDIR /app
 
 # Copy the project files into the container
-COPY --chown=user:user ./data/raw /app/data/raw
-COPY --chown=user:user ./data/train /app/data/train
-COPY --chown=user:user ./src/train /app/src/train
-COPY --chown=user:user ./src/preprocess.py /app/src
-COPY --chown=user:user ./src/utils.py /app/src
+COPY --chown=user:user ./data/inference /app/data/inference
+COPY --chown=user:user ./src /app/src
+COPY --chown=user:user ./models /app/models
+COPY --chown=user:user ./results /app/results
 COPY --chown=user:user settings.json ./
 COPY --chown=user:user requirements.txt ./
 
@@ -45,9 +44,6 @@ RUN find /app -type d -exec chmod 775 {} \;
 # Give read and write permissions to the owner and group for all files
 RUN find /app -type f -exec chmod 664 {} \;
 
-RUN mkdir -p models results && \
-    chmod 775 models results
-
 # Retrieve environment variables from settings.json
 RUN jq -r '. | to_entries | .[] | "\(.key)=\(.value)"' settings.json > .env \
     && echo "source .env" >> ~/.bashrc
@@ -56,4 +52,4 @@ RUN jq -r '. | to_entries | .[] | "\(.key)=\(.value)"' settings.json > .env \
 RUN pip install --user -r requirements.txt
 
 # Set the entrypoint to the training script
-CMD ["python3", "/app/src/train/train.py"]
+CMD ["python3", "/app/src/inference/run_inference.py"]
