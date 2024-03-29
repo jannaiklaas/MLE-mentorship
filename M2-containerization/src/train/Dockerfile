@@ -34,9 +34,8 @@ COPY --chown=user:user ./src/preprocess.py /app/src
 COPY --chown=user:user ./src/utils.py /app/src
 COPY --chown=user:user settings.json ./
 COPY --chown=user:user requirements.txt ./
-
-# Set default umask for the user
-RUN echo "umask 002" >> ~/.bashrc
+COPY --chown=user:user entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
 
 # Set permissions for the entire /app directory
 # Give read, write, and execute permissions to the owner and group for all directories
@@ -44,9 +43,6 @@ RUN find /app -type d -exec chmod 775 {} \;
 
 # Give read and write permissions to the owner and group for all files
 RUN find /app -type f -exec chmod 664 {} \;
-
-RUN mkdir -p models results && \
-    chmod 775 models results
 
 # Retrieve environment variables from settings.json
 RUN jq -r '. | to_entries | .[] | "\(.key)=\(.value)"' settings.json > .env \
@@ -56,4 +52,5 @@ RUN jq -r '. | to_entries | .[] | "\(.key)=\(.value)"' settings.json > .env \
 RUN pip install --user -r requirements.txt
 
 # Set the entrypoint to the training script
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 CMD ["python3", "/app/src/train/train.py"]

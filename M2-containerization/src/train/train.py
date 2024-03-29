@@ -107,8 +107,8 @@ def evaluate_model(model, X, y_true, set_name,
                      f"AUC ROC: {auc_roc: .4f}\n")
     logging.info("Saving performance metrics...")
     if not os.path.exists(RESULTS_DIR):
-        os.makedirs(RESULTS_DIR)
-        os.chmod(RESULTS_DIR, 0o775)
+        os.makedirs(RESULTS_DIR, exist_ok=True)
+    os.chmod(RESULTS_DIR, 0o775)
     path = os.path.join(RESULTS_DIR, conf['files']['metrics_file'])
     metrics_str = "\n".join([f"{key}: {value}" for key, value in metrics.items()])
     with open(path, "a") as file:
@@ -120,8 +120,8 @@ def save_model(model, path, model_name=conf['model']['name']+conf['model']['exte
     """Saves the trained model to the specified path."""
     logging.info("Saving the model...")
     if not os.path.exists(path):
-        os.makedirs(path)
-        os.chmod(path, 0o775)
+        os.makedirs(path, exist_ok=True)
+    os.chmod(path, 0o775)
     model_path = os.path.join(path, model_name)
     model.save(model_path)
     os.chmod(model_path, 0o664)  
@@ -130,7 +130,6 @@ def save_model(model, path, model_name=conf['model']['name']+conf['model']['exte
 def main():
     os.umask(0o002)
     set_seed(conf['general']['seed_value'])
-    """Main method."""
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
     X = preprocess_images(TRAIN_IMAGES_PATH)
