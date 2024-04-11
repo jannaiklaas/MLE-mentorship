@@ -1,0 +1,56 @@
+version: '3.8'
+services:
+  mlflow-server:
+    build: ./mlflow-server
+    ports:
+      - "5001:5000"
+    volumes:
+      - "mlflow-data:/mlflow"
+  
+  mlflow-client-1:
+    build: 
+      context: .
+      dockerfile: experiment_1/Dockerfile
+    depends_on:
+      - mlflow-server
+    volumes:
+      - "mlflow-data:/mlflow"
+
+  mlflow-client-2:
+    build: 
+      context: .
+      dockerfile: experiment_2/Dockerfile
+    depends_on:
+      - mlflow-server
+    volumes:
+      - "mlflow-data:/mlflow"
+
+  mlflow-client-3:
+    build: 
+      context: .
+      dockerfile: experiment_3/Dockerfile
+    depends_on:
+      - mlflow-server
+    volumes:
+      - "mlflow-data:/mlflow"
+  
+  mlflow-client-4:
+    build: 
+      context: .
+      dockerfile: experiment_4/Dockerfile
+    depends_on:
+      - mlflow-server
+    volumes:
+      - "mlflow-data:/mlflow"
+
+  mlflow-client-5:
+    build: 
+      context: .
+      dockerfile: experiment_5/Dockerfile
+    depends_on:
+      - mlflow-server
+    volumes:
+      - "mlflow-data:/mlflow"
+  
+volumes:
+  mlflow-data: {}
