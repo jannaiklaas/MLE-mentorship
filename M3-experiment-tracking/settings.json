@@ -1,0 +1,64 @@
+{   "general": {
+        "random_state": 42,
+        "val_size": 0.2,
+        "max_iter": 1000,
+        "imputation_strategy": "group by target class, fill with medians",
+        "scaler": "MinMaxScaler",
+        "fallback_uri": "http://127.0.0.1:5000",
+        "experiment_name": "Pima Indians Diabetes Prediction",
+        "tuning_trials": 100,
+        "figure_dir": "/figures",
+        "code_dir": "/code",
+        "optimizer": "optuna-RandomSampler"
+    },
+    "data": {
+        "repo_owner": "jbrownlee",
+        "repo_name": "Datasets",
+        "file_name": "pima-indians-diabetes.data.csv",
+        "url": "https://raw.githubusercontent.com/jbrownlee/Datasets/master/pima-indians-diabetes.data.csv",
+        "hash_url": "https://api.github.com/repos/jbrownlee/Datasets/commits?path=pima-indians-diabetes.data.csv",
+        "col_names": ["Pregnancies", "Glucose", "BloodPressure", "SkinThickness", "Insulin", "BMI", "DiabetesPedigreeFunction", "Age", "Outcome"],
+        "col_with_zeroes": ["Glucose", "BloodPressure", "SkinThickness", "Insulin", "BMI"],
+        "target": "Outcome"
+    },
+    "exp_1": {
+        "artifact_path": "logreg-model",
+        "col_to_drop": null,
+        "feature_set_version": 1,
+        "model_type": "LogisticRegression",
+        "model_name": "exp_1_logreg.pkl",
+        "script_file_path": "experiment_1/train.py"
+    },
+    "exp_2": {
+        "artifact_path": "linearsvm-model",
+        "col_to_drop": ["BloodPressure", "SkinThickness", "Insulin"],
+        "feature_set_version": 2,
+        "model_type": "LinearSVC",
+        "model_name": "exp_2_linearsvm.pkl",
+        "script_file_path": "experiment_2/train.py"
+    },
+    "exp_3": {
+        "artifact_path": "xgb-model",
+        "col_to_drop": ["BloodPressure", "SkinThickness", "Insulin", "DiabetesPedigreeFunction", "BMI"],
+        "feature_set_version": 3,
+        "model_type": "XGBoost",
+        "model_name": "exp_3_xgboost.pkl",
+        "script_file_path": "experiment_3/train.py"
+    },
+    "exp_4": {
+        "artifact_path": "linearsvm-model",
+        "col_to_drop": null,
+        "feature_set_version": 1,
+        "model_type": "LinearSVC",
+        "model_name": "exp_4_linearsvm.pkl",
+        "script_file_path": "experiment_4/train.py"
+    },
+    "exp_5": {
+        "artifact_path": "xgb-model",
+        "col_to_drop": null,
+        "feature_set_version": 1,
+        "model_type": "XGBoost",
+        "model_name": "exp_5_xgboost.pkl",
+        "script_file_path": "experiment_5/train.py"
+    }
+}
