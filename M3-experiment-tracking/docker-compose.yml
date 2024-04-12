@@ -1,3 +1,4 @@
+# docker-compose.yml
 version: '3.8'
 services:
   mlflow-server:
@@ -7,50 +8,18 @@ services:
     volumes:
       - "mlflow-data:/mlflow"
   
-  mlflow-client-1:
+  mlflow-client:
     build: 
       context: .
-      dockerfile: experiment_1/Dockerfile
+      dockerfile: ./mlflow-client/Dockerfile
+      args:
+        EXPERIMENT_NUMBER: ${EXPERIMENT_NUMBER}
     depends_on:
       - mlflow-server
     volumes:
       - "mlflow-data:/mlflow"
-
-  mlflow-client-2:
-    build: 
-      context: .
-      dockerfile: experiment_2/Dockerfile
-    depends_on:
-      - mlflow-server
-    volumes:
-      - "mlflow-data:/mlflow"
-
-  mlflow-client-3:
-    build: 
-      context: .
-      dockerfile: experiment_3/Dockerfile
-    depends_on:
-      - mlflow-server
-    volumes:
-      - "mlflow-data:/mlflow"
-  
-  mlflow-client-4:
-    build: 
-      context: .
-      dockerfile: experiment_4/Dockerfile
-    depends_on:
-      - mlflow-server
-    volumes:
-      - "mlflow-data:/mlflow"
-
-  mlflow-client-5:
-    build: 
-      context: .
-      dockerfile: experiment_5/Dockerfile
-    depends_on:
-      - mlflow-server
-    volumes:
-      - "mlflow-data:/mlflow"
+    environment:
+      - EXPERIMENT_NUMBER=${EXPERIMENT_NUMBER}
   
 volumes:
   mlflow-data: {}
