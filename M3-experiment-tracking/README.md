@@ -22,7 +22,7 @@ More experiments can be created, as long as the script is named `train.py` and l
 3. Copy the repository's URL from GitHub
 4. In the Terminal/Powershell, type `git clone`, paste the URL you just copied and hit enter
 
-5. Now you should see the "MLE-mentorship" folder in your local destination. If it is there, you may close the Terminal/Powershell.
+5. Now you should see the `MLE-mentorship` folder in your local destination. If it is there, you may close the Terminal/Powershell.
 
 6. Open a new Terminal/Powershell at "M3-experiment-tracking" folder (inside the "MLE-mentorship" folder). This will be your working directory.
 
@@ -33,3 +33,5 @@ EXPERIMENT_NUMBER={your_experiment_number} docker-compose up --build
 Make sure to replace `your_experiment_number` with the experiment number you want to run.
 
 8. Once the MLflow server is up, you should be able to access it through your web browser by navigating to `http://localhost:5001`.
+
+9. The experiment's artifacts are locally saved at `mlflow/artifacts/` . You should be able to see in the `MLE-mentorship` folder after the client container has finished running.

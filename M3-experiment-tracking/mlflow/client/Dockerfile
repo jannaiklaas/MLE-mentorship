@@ -7,7 +7,7 @@ WORKDIR /app
 COPY ./experiment_${EXPERIMENT_NUMBER}/ ./experiment_${EXPERIMENT_NUMBER}
 COPY settings.json ./
 COPY requirements.txt ./
-COPY mlflow-client/entrypoint.sh /entrypoint.sh
+COPY ./mlflow/client/entrypoint.sh /entrypoint.sh
 
 RUN pip install --no-cache-dir -r requirements.txt \
 && chmod +x /entrypoint.sh
