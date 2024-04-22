@@ -1,0 +1,20 @@
+{   
+    "general": {
+        "chunk_size": 8192,
+        "seed_value": 42
+    },
+    "urls": {
+        "data": "https://raw.githubusercontent.com/jannaiklaas/datasets/main/1C_sales_dataset/"
+      },
+      "directories": {
+        "data": "data",
+        "raw_data": "raw",
+        "preprocessed_data": "preprocessed"
+      },
+      "files": {
+        "item_categories": "item_categories.csv",
+        "items": "items.csv",
+        "sales_train": "sales_train.csv",
+        "shops": "shops.csv"
+      }
+}
