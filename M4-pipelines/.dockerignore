@@ -1,0 +1,6 @@
+data_loader.py
+__pycache__/
+*.py[cod]
+.vscode
+.DS_Store
+.gitignore

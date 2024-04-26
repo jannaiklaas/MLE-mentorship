@@ -10,7 +10,7 @@ import sys
 import json
 
 # Define directories
-ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(ROOT_DIR)
 
 CONF_FILE = os.path.join(ROOT_DIR, 'settings.json')

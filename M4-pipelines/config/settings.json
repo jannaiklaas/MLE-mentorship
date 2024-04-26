@@ -9,7 +9,9 @@
       "directories": {
         "data": "data",
         "raw_data": "raw",
-        "preprocessed_data": "preprocessed"
+        "preprocessed_data": "preprocessed",
+        "intermediate_data": "intermediate",
+        "complete_data": "complete"
       },
       "files": {
         "item_categories": "item_categories.csv",
