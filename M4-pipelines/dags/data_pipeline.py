@@ -17,6 +17,8 @@ from airflow.operators.python import PythonOperator
 from airflow.models import Variable
 from airflow.utils.dates import days_ago
 from airflow.utils.task_group import TaskGroup
+from airflow.operators.python import BranchPythonOperator
+from airflow.operators.dummy import DummyOperator
 
 # Constants
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -30,9 +32,16 @@ PREPROCESSED_DATA_DIR = os.path.join(DATA_DIR, conf['directories']['preprocessed
 INTERMEDIATE_DATA_DIR = os.path.join(PREPROCESSED_DATA_DIR, conf['directories']['intermediate_data'])
 COMPLETE_DATA_DIR = os.path.join(PREPROCESSED_DATA_DIR, conf['directories']['complete_data'])
 
+def get_next_block_num(**context):
+    params = context['params']
+    start_month_block = int(params['start_month_block'])
+    month_block = Variable.get("last_processed_block", default_var=start_month_block-1)
+    return int(month_block)+1
+
 # Helper function to get month-year string
-def get_month_year(date_block_num):
-    sales_start_date = datetime(2013, 1, 1)
+def get_month_year(date_block_num, **context):
+    params = context['params']
+    sales_start_date = pd.to_datetime(params['sales_start_date'], format='%Y-%m-%d')
     target_date = sales_start_date + pd.DateOffset(months=date_block_num)
     return target_date.strftime("%m-%Y")
 
@@ -40,10 +49,34 @@ def get_month_year(date_block_num):
 def load_config(conf=conf):
     Variable.set("config", conf)
 
+# Dummy function to continue operation
+def do_nothing(**kwargs):
+    print("No more data available for processing.")
+
+def should_process_block(**kwargs):
+    next_block_num = kwargs["ti"].xcom_pull(task_ids="get_next_block_num")
+    # Define path to the CSV file
+    sales_train_path = os.path.join(RAW_DATA_DIR, 'sales_train.csv')
+    try:
+        data = pd.read_csv(sales_train_path, usecols=['date_block_num'])
+        max_available_block = data['date_block_num'].max()
+    except FileNotFoundError:
+        return 'end_task' 
+    if next_block_num < max_available_block:
+        kwargs['ti'].xcom_push(key='next_block_num', value=next_block_num)
+        return 'load_sales_train'
+    else:
+        return 'end_task'  
+
+def update_processed_block_num(**kwargs):
+    next_block_num = kwargs["ti"].xcom_pull(task_ids="get_next_block_num")
+    Variable.set("last_processed_block", next_block_num)
+
 # Load specific CSV file
-def load_csv(file_name, date_block_num=None, output_dir=None):
+def load_csv(file_name, output_dir=None, **kwargs):
+    context = kwargs
     df = pd.read_csv(os.path.join(RAW_DATA_DIR, file_name))
-    
+    date_block_num =  context['ti'].xcom_pull(task_ids="get_next_block_num")
     if date_block_num is not None and 'date_block_num' in df.columns:
         date_block_num = int(date_block_num)
         max_block = df['date_block_num'].max()
@@ -51,7 +84,7 @@ def load_csv(file_name, date_block_num=None, output_dir=None):
             raise ValueError(f"No data available for date_block_num: {date_block_num}")
         df = df[df['date_block_num'] == date_block_num]
 
-    month_year = get_month_year(date_block_num) if date_block_num is not None else ''
+    month_year = get_month_year(date_block_num, **context) if date_block_num is not None else ''
     if output_dir == None: 
         output_dir = os.path.join(INTERMEDIATE_DATA_DIR, month_year)
     os.makedirs(output_dir, exist_ok=True)
@@ -270,46 +303,57 @@ def encode_shop_city_and_type(output_dir, **kwargs):
     return output_file_path
 
 # Methods for sales_train.csv
-def remove_outliers(output_dir, **kwargs):
-    sales = pd.read_csv(kwargs['ti'].xcom_pull(task_ids=f'process_date_block_{kwargs["num"]}.load_sales_train'))
+def remove_outliers(**kwargs):
+    context = kwargs
+    num = kwargs["ti"].xcom_pull(task_ids="get_next_block_num")
+    sales = pd.read_csv(kwargs['ti'].xcom_pull(task_ids='load_sales_train'))
     sales = sales[(sales.item_price < 50000 )& (sales.item_cnt_day < 1001)]
+    output_dir = os.path.join(INTERMEDIATE_DATA_DIR, get_month_year(num, **context), 'remove_outliers')
     os.makedirs(output_dir, exist_ok=True)
     output_file_path = os.path.join(output_dir, 'sales_without_outliers.csv')
     sales.to_csv(output_file_path, index=False)
     return output_file_path
 
-def remove_neg_values(output_dir, **kwargs):
-    sales = pd.read_csv(kwargs['ti'].xcom_pull(task_ids=f'process_date_block_{kwargs["num"]}.remove_outliers'))
+def remove_neg_values(**kwargs):
+    context = kwargs
+    num = kwargs["ti"].xcom_pull(task_ids="get_next_block_num")
+    sales = pd.read_csv(kwargs['ti'].xcom_pull(task_ids='remove_outliers'))
     sales = sales[(sales.item_price > 0 )& (sales.item_cnt_day > 0)]
+    output_dir = os.path.join(INTERMEDIATE_DATA_DIR, get_month_year(num, **context), 'remove_neg_values')
     os.makedirs(output_dir, exist_ok=True)
     output_file_path = os.path.join(output_dir, 'sales_without_neg_values.csv')
     sales.to_csv(output_file_path, index=False)
     return output_file_path
 
-def correct_shop_id(output_dir, **kwargs):
-    sales = pd.read_csv(kwargs['ti'].xcom_pull(task_ids=f'process_date_block_{kwargs["num"]}.remove_neg_values'))
+def correct_shop_id(**kwargs):
+    context = kwargs
+    num = kwargs["ti"].xcom_pull(task_ids="get_next_block_num")
+    sales = pd.read_csv(kwargs['ti'].xcom_pull(task_ids='remove_neg_values'))
     sales["shop_id"] = sales["shop_id"].replace({0: 57, 1: 58, 11: 10})
+    output_dir = os.path.join(INTERMEDIATE_DATA_DIR, get_month_year(num, **context), 'correct_shop_id')
     os.makedirs(output_dir, exist_ok=True)
     output_file_path = os.path.join(output_dir, 'sales_correct_shops.csv')
     sales.to_csv(output_file_path, index=False)
     return output_file_path
 
-def add_revenue(output_dir, **kwargs):
-    sales = pd.read_csv(kwargs['ti'].xcom_pull(task_ids=f'process_date_block_{kwargs["num"]}.correct_shop_id'))
+def add_revenue(**kwargs):
+    context = kwargs
+    num = kwargs["ti"].xcom_pull(task_ids="get_next_block_num")
+    sales = pd.read_csv(kwargs['ti'].xcom_pull(task_ids='correct_shop_id'))
     sales['revenue'] = sales['item_cnt_day'] * sales['item_price']
+    output_dir = os.path.join(INTERMEDIATE_DATA_DIR, get_month_year(num, **context), 'add_revenue')
     os.makedirs(output_dir, exist_ok=True)
     output_file_path = os.path.join(output_dir, 'sales_with_revenue.csv')
     sales.to_csv(output_file_path, index=False)
     return output_file_path
 
-def merge_current_with_previous_sales(output_dir, **kwargs):
-    current_sales = pd.read_csv(kwargs['ti'].xcom_pull(task_ids=f'process_date_block_{kwargs["num"]}.add_revenue'))
-
+def merge_current_with_previous_sales(**kwargs):
+    context = kwargs
+    current_sales = pd.read_csv(kwargs['ti'].xcom_pull(task_ids='add_revenue'))
+    num = kwargs["ti"].xcom_pull(task_ids="get_next_block_num")
     # Determine the previous month's file path
-    previous_month_year = get_month_year(kwargs["num"] - 1)
+    previous_month_year = get_month_year(num - 1, **context)
     previous_file_path = os.path.join(INTERMEDIATE_DATA_DIR, previous_month_year, 'sales_merged/combined_sales.csv')
-    
-    # previous_sales = pd.read_csv(kwargs['ti'].xcom_pull(task_ids=f'process_date_block_{kwargs["num"]-1}.merge_current_with_previous_sales'))
     
     if os.path.exists(previous_file_path):
         # Load previous data if it exists
@@ -320,38 +364,41 @@ def merge_current_with_previous_sales(output_dir, **kwargs):
         combined_sales = current_sales
 
     # Save the combined data
+    output_dir = os.path.join(INTERMEDIATE_DATA_DIR, get_month_year(num, **context), 'sales_merged')
     combined_file_path = os.path.join(output_dir, 'combined_sales.csv')
     os.makedirs(os.path.dirname(combined_file_path), exist_ok=True)
     combined_sales.to_csv(combined_file_path, index=False)
 
     return combined_file_path
 
-def aggregate_sales_data(output_dir, **kwargs):
+def aggregate_sales_data(**kwargs):
     # Load the sales data with revenue
-    sales = pd.read_csv(kwargs['ti'].xcom_pull(task_ids=f'process_date_block_{kwargs["num"]}.merge_current_with_previous_sales'))
+    sales = pd.read_csv(kwargs['ti'].xcom_pull(task_ids='merge_current_with_previous_sales'))
     agg_sales = sales.groupby(['date_block_num', 'shop_id', 'item_id']).agg(
         item_cnt_month=('item_cnt_day', 'sum'),
         revenue_month=('revenue', 'sum')
     ).reset_index()
-
+    output_dir = os.path.join(INTERMEDIATE_DATA_DIR, 'aggregate_sales_data')
     os.makedirs(output_dir, exist_ok=True)
     output_file_path = os.path.join(output_dir, 'aggregated_sales.csv')
     agg_sales.to_csv(output_file_path, index=False)
     return output_file_path
 
-def merge_shops_with_sales(output_dir, **kwargs):
+def merge_shops_with_sales(**kwargs):
     sales = pd.read_csv(kwargs['ti'].xcom_pull(task_ids='aggregate_sales_data'))
     shops = pd.read_csv(kwargs['ti'].xcom_pull(task_ids='encode_shops'))
     merged = sales.merge(shops, on="shop_id", how="left")
+    output_dir = os.path.join(INTERMEDIATE_DATA_DIR, 'merge_items_with_sales')
     os.makedirs(output_dir, exist_ok=True)
     output_file_path = os.path.join(output_dir, 'merged_shops_with_sales.csv')
     merged.to_csv(output_file_path, index=False)
     return output_file_path
 
-def merge_items_with_sales_and_shops(output_dir, **kwargs):
+def merge_items_with_sales_and_shops(**kwargs):
     sales = pd.read_csv(kwargs['ti'].xcom_pull(task_ids='merge_shops_with_sales'))
     items = pd.read_csv(kwargs['ti'].xcom_pull(task_ids='merge_items_with_categories'))
     merged = sales.merge(items, on="item_id", how="left")
+    output_dir = os.path.join(INTERMEDIATE_DATA_DIR, 'merge_items_with_sales_and_shops')
     os.makedirs(output_dir, exist_ok=True)
     output_file_path = os.path.join(output_dir, 'merged_item_with_sales_and_shops.csv')
     merged.to_csv(output_file_path, index=False)
@@ -371,8 +418,9 @@ def add_shop_and_item_age(**kwargs):
     return output_file_path
 
 def add_time_features(**kwargs):
+    num = kwargs["ti"].xcom_pull(task_ids="get_next_block_num")
     train = pd.read_csv(kwargs['ti'].xcom_pull(task_ids='add_shop_and_item_age'))
-    sales = pd.read_csv(kwargs['ti'].xcom_pull(task_ids=f'process_date_block_{kwargs["num"]}.merge_current_with_previous_sales'))
+    sales = pd.read_csv(kwargs['ti'].xcom_pull(task_ids='merge_current_with_previous_sales'))
     sales["date"] = pd.to_datetime(sales["date"], format="%d.%m.%Y")
     sales = sales.merge(train[["item_id", "item_name_group"]], on="item_id", how="left")
 
@@ -428,7 +476,7 @@ def add_time_features(**kwargs):
     )
     def last_sale_days(matrix):
         last_shop_item_dates = []
-        for dbn in range(1, kwargs["num"]+1):
+        for dbn in range(1, num+1):
             lsid_temp = (
                 sales.query(f"date_block_num<{dbn}")
                 .groupby(["shop_id", "item_id"])
@@ -443,7 +491,6 @@ def add_time_features(**kwargs):
         matrix = matrix.merge(
             last_shop_item_dates, on=["date_block_num", "shop_id", "item_id"], how="left"
         )
-
         def days_since_last_feat(m, feat_name, date_feat_name, missingval):
             m[feat_name] = (m["month_first_day"] - m[date_feat_name]).dt.days
             m.loc[m[feat_name] > 2000, feat_name] = missingval
@@ -479,7 +526,8 @@ def add_time_features(**kwargs):
 
 def add_price_features(**kwargs):
     # Get mean prices per month from train dataframe
-    sales = pd.read_csv(kwargs['ti'].xcom_pull(task_ids=f'process_date_block_{kwargs["num"]}.merge_current_with_previous_sales'))
+    num = kwargs["ti"].xcom_pull(task_ids="get_next_block_num")
+    sales = pd.read_csv(kwargs['ti'].xcom_pull(task_ids='merge_current_with_previous_sales'))
     train = pd.read_csv(kwargs['ti'].xcom_pull(task_ids='add_time_features'))
     price_features = sales.groupby(["date_block_num", "item_id"]).item_price.mean()
     price_features = pd.DataFrame(price_features)
@@ -508,7 +556,7 @@ def add_price_features(**kwargs):
     aggs = {f: "last" for f in features}
     renames = {f: "last_" + f for f in features}
     features = []
-    for dbn in range(1, kwargs["num"]+1):
+    for dbn in range(1, num+1):
         f_temp = (
             price_features.query(f"date_block_num<{dbn}")
             .groupby("item_id")
@@ -532,30 +580,59 @@ default_args = {
     'email_on_failure': False,
     'email_on_retry': False,
     'retries': 1,
-    'retry_delay': timedelta(minutes=1)
+    'retry_delay': timedelta(minutes=1),
+    'params': {
+        'start_month_block': 0,
+        'sales_start_date': '2013-01-01'
+    }
 }
 dag = DAG(
     'data_preprocessing',
     default_args=default_args,
     description='A DAG to preprocess sales data',
-    schedule_interval=timedelta(hours=1),
+    schedule_interval=timedelta(minutes=5),
     start_date=days_ago(1),
     tags=['sales', 'preprocessing'],
 )
 
-start_month_block = 0
-end_month_block = 3
+end_task = DummyOperator(
+    task_id='end_task',
+    dag=dag
+)
+
+get_next_block_task = PythonOperator(
+    task_id='get_next_block_num',
+    python_callable=get_next_block_num,
+    provide_context=True,
+    dag=dag,
+)
+
+branch_task = BranchPythonOperator(
+    task_id='branch_task',
+    python_callable=should_process_block,
+    provide_context=True,
+    dag=dag,
+)
+
+update_block_num_task = PythonOperator(
+    task_id='update_processed_block_num',
+    python_callable=update_processed_block_num,
+    provide_context=True,
+    dag=dag,
+)
 
 # Define tasks
 load_config_task = PythonOperator(
     task_id='load_config',
     python_callable=load_config,
+    provide_context=True,
     dag=dag,
 )
 
 load_item_categories_task = PythonOperator(
     task_id='load_item_categories',
     python_callable=load_csv,
+    provide_context=True,
     op_kwargs={'output_dir': os.path.join(INTERMEDIATE_DATA_DIR, 'item_catgories'),
                'file_name': 'item_categories.csv'},
     dag=dag,
@@ -564,6 +641,7 @@ load_item_categories_task = PythonOperator(
 load_items_task = PythonOperator(
     task_id='load_items',
     python_callable=load_csv,
+    provide_context=True,
     op_kwargs={'output_dir': os.path.join(INTERMEDIATE_DATA_DIR, 'items'),
                'file_name': 'items.csv'},
     dag=dag,
@@ -572,6 +650,7 @@ load_items_task = PythonOperator(
 load_shops_task = PythonOperator(
     task_id='load_shops',
     python_callable=load_csv,
+    provide_context=True,
     op_kwargs={'output_dir': os.path.join(INTERMEDIATE_DATA_DIR, 'shops'),
                'file_name': 'shops.csv'},
     dag=dag,
@@ -681,107 +760,59 @@ aggregate_sales_data_task = PythonOperator(
     task_id='aggregate_sales_data',
     python_callable=aggregate_sales_data,
     provide_context=True,
-    op_kwargs={
-         'output_dir': os.path.join(INTERMEDIATE_DATA_DIR, 'aggregate_sales_data'),
-         'num': end_month_block
-         },
     dag=dag,
 )
 
-for num in range(int(start_month_block), int(end_month_block) + 1):
-    with TaskGroup(group_id=f'process_date_block_{num}', dag=dag) as tg:
-        load_sales_train_task = PythonOperator(
-        task_id='load_sales_train',
-        python_callable=load_csv,
-        op_kwargs={
-            'file_name': 'sales_train.csv', 
-            'date_block_num': num
-            }, 
-        dag=dag,
-        )
+load_sales_train_task = PythonOperator(
+    task_id='load_sales_train',
+    python_callable=load_csv,
+    provide_context=True,
+    op_kwargs={
+        'file_name': 'sales_train.csv'
+        }, 
+    dag=dag,
+)
 
-        remove_outliers_task = PythonOperator(
-            task_id='remove_outliers',
-            python_callable=remove_outliers,
-            provide_context=True,
-            op_kwargs={
-                'output_dir': os.path.join(INTERMEDIATE_DATA_DIR, get_month_year(num), 'remove_outliers'),
-                'num': num
-                },
-            dag=dag,
-            )
+remove_outliers_task = PythonOperator(
+    task_id='remove_outliers',
+    python_callable=remove_outliers,
+    provide_context=True,
+    dag=dag,
+)
 
-        remove_neg_values_task = PythonOperator(
-            task_id='remove_neg_values',
-            python_callable=remove_neg_values,
-            provide_context=True,
-            op_kwargs={
-                'output_dir': os.path.join(INTERMEDIATE_DATA_DIR, get_month_year(num), 'remove_neg_values'),
-                'num': num
-                },
-            dag=dag,
-            )
+remove_neg_values_task = PythonOperator(
+    task_id='remove_neg_values',
+    python_callable=remove_neg_values,
+    provide_context=True,
+    dag=dag,
+    )
 
-        correct_shop_id_task = PythonOperator(
-            task_id='correct_shop_id',
-            python_callable=correct_shop_id,
-            provide_context=True,
-            op_kwargs={
-                'output_dir': os.path.join(INTERMEDIATE_DATA_DIR, get_month_year(num), 'correct_shop_id'),
-                'num': num
-                },
-            dag=dag,
-            )
+correct_shop_id_task = PythonOperator(
+    task_id='correct_shop_id',
+    python_callable=correct_shop_id,
+    provide_context=True,
+    dag=dag,
+    )
         
 
-        add_revenue_task = PythonOperator(
-            task_id='add_revenue',
-            python_callable=add_revenue,
-            provide_context=True,
-            op_kwargs={
-                'output_dir': os.path.join(INTERMEDIATE_DATA_DIR, get_month_year(num), 'add_revenue'),
-                'num': num
-                },
-            dag=dag,
-        )
+add_revenue_task = PythonOperator(
+    task_id='add_revenue',
+    python_callable=add_revenue,
+    provide_context=True,
+    dag=dag,
+    )
 
-        merge_current_with_previous_sales_task = PythonOperator(
-            task_id='merge_current_with_previous_sales',
-            python_callable=merge_current_with_previous_sales,
-            provide_context=True,
-            op_kwargs={
-                'output_dir': os.path.join(INTERMEDIATE_DATA_DIR, get_month_year(num), 'sales_merged'),
-                'num': num
-                },
-            dag=dag,
-        )
-
-        load_sales_train_task >> remove_outliers_task >> remove_neg_values_task >> correct_shop_id_task
-        
-        correct_shop_id_task >> add_revenue_task >> merge_current_with_previous_sales_task
-
-    
-    load_config_task >> [load_item_categories_task, load_items_task, load_shops_task, load_sales_train_task]
-
-    load_item_categories_task >> add_category_group_task >> add_category_subgroup_task >> encode_item_categories_task #item cats
-
-    load_items_task >> add_item_name_group_task >> add_first_word_features_task >> add_item_name_length_task
-
-    [encode_item_categories_task, add_item_name_length_task] >> merge_items_with_categories_task
-
-    load_shops_task >> add_shop_city_task >> add_shop_type_task >> encode_shops_task >> tg
-
-    tg >> aggregate_sales_data_task
-
-
+merge_current_with_previous_sales_task = PythonOperator(
+    task_id='merge_current_with_previous_sales',
+    python_callable=merge_current_with_previous_sales,
+    provide_context=True,
+    dag=dag,
+    )
 
 merge_shops_with_sales_task = PythonOperator(
     task_id='merge_shops_with_sales',
     python_callable=merge_shops_with_sales,
     provide_context=True,
-    op_kwargs={
-        'output_dir': os.path.join(INTERMEDIATE_DATA_DIR, 'merge_shops_with_sales')
-        },
     dag=dag,
 )
 
@@ -789,9 +820,6 @@ merge_items_with_sales_and_shops_task = PythonOperator(
     task_id='merge_items_with_sales_and_shops',
     python_callable=merge_items_with_sales_and_shops,
     provide_context=True,
-    op_kwargs={
-        'output_dir': os.path.join(INTERMEDIATE_DATA_DIR, 'merge_items_with_sales_and_shops')
-    },
     dag=dag,
 )
 
@@ -800,15 +828,12 @@ add_shop_and_item_age_task = PythonOperator(
     python_callable=add_shop_and_item_age,
     provide_context=True,
     dag=dag,
-) 
+)
 
 add_time_features_task = PythonOperator(
     task_id='add_time_features',
     python_callable=add_time_features,
     provide_context=True,
-    op_kwargs={
-        'num': end_month_block
-    },
     dag=dag,
 )
 
@@ -816,12 +841,26 @@ add_price_features_task = PythonOperator(
     task_id='add_price_features',
     python_callable=add_price_features,
     provide_context=True,
-    op_kwargs={
-        'num': end_month_block
-    },
     dag=dag,
 )
 
+load_config_task >> [get_next_block_task, load_item_categories_task, load_items_task, load_shops_task] 
+
+get_next_block_task >> branch_task >> [load_sales_train_task, end_task]
+
+load_sales_train_task >> remove_outliers_task >> remove_neg_values_task >> correct_shop_id_task
+correct_shop_id_task >> add_revenue_task >> merge_current_with_previous_sales_task >> aggregate_sales_data_task
+
+load_item_categories_task >> add_category_group_task >> add_category_subgroup_task >> encode_item_categories_task 
+
+load_items_task >> add_item_name_group_task >> add_first_word_features_task >> add_item_name_length_task
+ 
+[encode_item_categories_task, add_item_name_length_task] >> merge_items_with_categories_task
+    
+load_shops_task >> add_shop_city_task >> add_shop_type_task >> encode_shops_task
 [encode_shops_task, aggregate_sales_data_task] >> merge_shops_with_sales_task
-[merge_items_with_categories_task, merge_shops_with_sales_task] >> merge_items_with_sales_and_shops_task >> add_shop_and_item_age_task
-add_shop_and_item_age_task >> add_time_features_task >> add_price_features_task
+
+[merge_items_with_categories_task, merge_shops_with_sales_task] >> merge_items_with_sales_and_shops_task
+
+merge_items_with_sales_and_shops_task >> add_shop_and_item_age_task >> add_time_features_task >> update_block_num_task
+add_time_features_task >> add_price_features_task >> update_block_num_task
