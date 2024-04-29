@@ -378,6 +378,7 @@ def aggregate_sales_data(**kwargs):
         item_cnt_month=('item_cnt_day', 'sum'),
         revenue_month=('revenue', 'sum')
     ).reset_index()
+    agg_sales[["item_cnt_month", "revenue_month"]] = agg_sales[["item_cnt_month", "revenue_month"]].fillna(0).astype(np.float16)
     output_dir = os.path.join(INTERMEDIATE_DATA_DIR, 'aggregate_sales_data')
     os.makedirs(output_dir, exist_ok=True)
     output_file_path = os.path.join(output_dir, 'aggregated_sales.csv')
@@ -404,173 +405,59 @@ def merge_items_with_sales_and_shops(**kwargs):
     merged.to_csv(output_file_path, index=False)
     return output_file_path
 
-def add_shop_and_item_age(**kwargs):
-    train = pd.read_csv(kwargs['ti'].xcom_pull(task_ids='merge_items_with_sales_and_shops'))
-    train["item_age"] = train.groupby("item_id")["date_block_num"].transform(lambda x: x - x.min())
-    # Sales tend to plateau after 12 months
-    train["new_item"] = train["item_age"] == 0
-    train["new_item"] = train["new_item"].astype("int8")
-    train["shop_age"] = (train.groupby("shop_id")["date_block_num"].transform(lambda x: x - x.min()).astype("int8"))
-    output_dir = os.path.join(INTERMEDIATE_DATA_DIR, 'time_features')
+def downcast_values(**kwargs):
+    df = pd.read_csv(kwargs['ti'].xcom_pull(task_ids='merge_items_with_sales_and_shops'))
+    int_columns = ['date_block_num',
+                   'shop_id',
+                   'item_id', 
+                   'shop_type',
+                   'shop_city',
+                   'item_category_id',
+                   'group',
+                   'subgroup',
+                   'item_name_group',
+                   'artist_name_or_first_word',
+                   'item_name_cleaned_length',
+                   'item_name_length']
+    df[int_columns] = df[int_columns].astype(np.int8)
+    return df
+
+def lag_feature(prev_task_id, lags, cols, drop_cols = False, **kwargs):
+    df = kwargs['ti'].xcom_pull(task_ids=prev_task_id)
+    for col in cols:
+        for i in lags:
+            shifted_col_name = f"{col}_lag_{i}"
+            df[shifted_col_name] = df.groupby(['shop_id', 'item_id'])[col].shift(i)
+    if drop_cols:
+        df.drop(cols, axis=1, inplace=True)
+    return df
+
+def add_date_avg_item_cnt(**kwargs):
+    df = kwargs['ti'].xcom_pull(task_ids='add_lag_item_cnt_month')
+    group = df.groupby( ["date_block_num"] ).agg({"item_cnt_month" : ["mean"]})
+    group.columns = ["date_avg_item_cnt"]
+    group.reset_index(inplace = True)
+
+    df = pd.merge(df, group, on = ["date_block_num"], how = "left")
+    df.date_avg_item_cnt = df["date_avg_item_cnt"].astype(np.float16)
+    return df
+
+def add_date_item_avg_item_cnt(**kwargs):
+    df = kwargs['ti'].xcom_pull(task_ids='add_previous_month_average_item_cnt')
+    group = df.groupby(['date_block_num', 'item_id']).agg({'item_cnt_month': ['mean']})
+    group.columns = [ 'date_item_avg_item_cnt' ]
+    group.reset_index(inplace=True)
+
+    df = pd.merge(df, group, on=['date_block_num','item_id'], how='left')
+    df.date_item_avg_item_cnt = df['date_item_avg_item_cnt'].astype(np.float16)
+    return df
+
+def save_final_csv(prev_task_id, **kwargs):
+    df = kwargs['ti'].xcom_pull(task_ids=prev_task_id)
+    output_dir = os.path.join(COMPLETE_DATA_DIR)
     os.makedirs(output_dir, exist_ok=True)
-    output_file_path = os.path.join(output_dir, 'added_shop_and_item_age.csv')
-    train.to_csv(output_file_path, index=False)
-    return output_file_path
-
-def add_time_features(**kwargs):
-    num = kwargs["ti"].xcom_pull(task_ids="get_next_block_num")
-    train = pd.read_csv(kwargs['ti'].xcom_pull(task_ids='add_shop_and_item_age'))
-    sales = pd.read_csv(kwargs['ti'].xcom_pull(task_ids='merge_current_with_previous_sales'))
-    sales["date"] = pd.to_datetime(sales["date"], format="%d.%m.%Y")
-    sales = sales.merge(train[["item_id", "item_name_group"]], on="item_id", how="left")
-
-    month_last_day = sales.groupby("date_block_num").date.max().rename("month_last_day")
-    month_last_day[~month_last_day.dt.is_month_end] = (
-        month_last_day[~month_last_day.dt.is_month_end] + MonthEnd()
-    )
-    month_first_day = sales.groupby("date_block_num").date.min().rename("month_first_day")
-    month_first_day[~month_first_day.dt.is_month_start] = (
-        month_first_day[~month_first_day.dt.is_month_start] - MonthBegin()
-    )
-    month_length = (month_last_day - month_first_day + Day()).rename("month_length")
-    first_shop_date = sales.groupby("shop_id").date.min().rename("first_shop_date")
-    first_item_date = sales.groupby("item_id").date.min().rename("first_item_date")
-    first_shop_item_date = (
-        sales.groupby(["shop_id", "item_id"]).date.min().rename("first_shop_item_date")
-    )
-    first_item_name_group_date = (
-        sales.groupby("item_name_group").date.min().rename("first_name_group_date")
-    )
-    train = train.merge(month_first_day, left_on="date_block_num", right_index=True, how="left")
-    train = train.merge(month_last_day, left_on="date_block_num", right_index=True, how="left")
-    train = train.merge(month_length, left_on="date_block_num", right_index=True, how="left")
-    train = train.merge(first_shop_date, left_on="shop_id", right_index=True, how="left")
-    train = train.merge(first_item_date, left_on="item_id", right_index=True, how="left")
-    train = train.merge(
-        first_shop_item_date, left_on=["shop_id", "item_id"], right_index=True, how="left"
-    )
-    train = train.merge(
-        first_item_name_group_date, left_on="item_name_group", right_index=True, how="left"
-    )
-    train["shop_open_days"] = train["month_last_day"] - train["first_shop_date"] + Day()
-    train["item_first_sale_days"] = train["month_last_day"] - train["first_item_date"] + Day()
-    train["item_in_shop_days"] = (
-        train[["shop_open_days", "item_first_sale_days", "month_length"]].min(axis=1).dt.days
-    )
-    train = train.drop(columns="item_first_sale_days")
-    train["item_cnt_day_avg"] = train["item_cnt_month"] / train["item_in_shop_days"]
-    train["month_length"] = train["month_length"].dt.days
-    train["shop_open_days"] = train["month_first_day"] - train["first_shop_date"]
-    train["first_item_sale_days"] = train["month_first_day"] - train["first_item_date"]
-    train["first_shop_item_sale_days"] = train["month_first_day"] - train["first_shop_item_date"]
-    train["first_name_group_sale_days"] = train["month_first_day"] - train["first_name_group_date"]
-    train["shop_open_days"] = train["shop_open_days"].dt.days.fillna(0).clip(lower=0)
-    train["first_item_sale_days"] = (
-        train["first_item_sale_days"].dt.days.fillna(0).clip(lower=0).replace(0, 9999)
-    )
-    train["first_shop_item_sale_days"] = (
-        train["first_shop_item_sale_days"].dt.days.fillna(0).clip(lower=0).replace(0, 9999)
-    )
-    train["first_name_group_sale_days"] = (
-        train["first_name_group_sale_days"].dt.days.fillna(0).clip(lower=0).replace(0, 9999)
-    )
-    def last_sale_days(matrix):
-        last_shop_item_dates = []
-        for dbn in range(1, num+1):
-            lsid_temp = (
-                sales.query(f"date_block_num<{dbn}")
-                .groupby(["shop_id", "item_id"])
-                .date.max()
-                .rename("last_shop_item_sale_date")
-                .reset_index()
-            )
-            lsid_temp["date_block_num"] = dbn
-            last_shop_item_dates.append(lsid_temp)
-
-        last_shop_item_dates = pd.concat(last_shop_item_dates)
-        matrix = matrix.merge(
-            last_shop_item_dates, on=["date_block_num", "shop_id", "item_id"], how="left"
-        )
-        def days_since_last_feat(m, feat_name, date_feat_name, missingval):
-            m[feat_name] = (m["month_first_day"] - m[date_feat_name]).dt.days
-            m.loc[m[feat_name] > 2000, feat_name] = missingval
-            m.loc[m[feat_name].isna(), feat_name] = missingval
-            return m
-
-        matrix = days_since_last_feat(
-            matrix, "last_shop_item_sale_days", "last_shop_item_sale_date", 9999
-        )
-
-        matrix = matrix.drop(columns=["last_shop_item_sale_date"])
-        return matrix
-    train = last_sale_days(train)
-    train = train.drop(
-        columns=[
-            "first_day",
-            "month_first_day",
-            "month_last_day",
-            "first_shop_date",
-            "first_item_date",
-            "first_name_group_date",
-            "item_in_shop_days",
-            "first_shop_item_date",
-            "month_length",
-        ],
-        errors="ignore",
-    )
-    output_dir = os.path.join(INTERMEDIATE_DATA_DIR, 'time_features')
-    os.makedirs(output_dir, exist_ok=True)
-    output_file_path = os.path.join(output_dir, 'add_time_features.csv')
-    train.to_csv(output_file_path, index=False)
-    return output_file_path
-
-def add_price_features(**kwargs):
-    # Get mean prices per month from train dataframe
-    num = kwargs["ti"].xcom_pull(task_ids="get_next_block_num")
-    sales = pd.read_csv(kwargs['ti'].xcom_pull(task_ids='merge_current_with_previous_sales'))
-    train = pd.read_csv(kwargs['ti'].xcom_pull(task_ids='add_time_features'))
-    price_features = sales.groupby(["date_block_num", "item_id"]).item_price.mean()
-    price_features = pd.DataFrame(price_features)
-    price_features = price_features.reset_index()
-    # Calculate normalized differenced from mean category price per month
-    price_features = price_features.merge(
-        train[["item_id", "item_category_id"]], how="left", on="item_id"
-    )
-    price_features["norm_diff_cat_price"] = price_features.groupby(
-        ["date_block_num", "item_category_id"]
-    )["item_price"].transform(lambda x: (x - x.mean()) / x.mean())
-    # Retain only the necessary features
-    price_features = price_features[
-        [
-            "date_block_num",
-            "item_id",
-            "item_price",
-            "norm_diff_cat_price",
-        ]
-    ]
-    features = [
-        "item_price",
-        "norm_diff_cat_price",
-    ]
-    newnames = ["last_" + f for f in features]
-    aggs = {f: "last" for f in features}
-    renames = {f: "last_" + f for f in features}
-    features = []
-    for dbn in range(1, num+1):
-        f_temp = (
-            price_features.query(f"date_block_num<{dbn}")
-            .groupby("item_id")
-            .agg(aggs)
-            .rename(columns=renames)
-        )
-        f_temp["date_block_num"] = dbn
-        features.append(f_temp)
-    features = pd.concat(features).reset_index()
-    train = train.merge(features, on=["date_block_num", "item_id"], how="left")
-    output_dir = os.path.join(INTERMEDIATE_DATA_DIR, 'price_features')
-    os.makedirs(output_dir, exist_ok=True)
-    output_file_path = os.path.join(output_dir, 'added_price_features.csv')
-    train.to_csv(output_file_path, index=False)
+    output_file_path = os.path.join(output_dir, 'data_preprocessed.csv')
+    df.to_csv(output_file_path, index=False)
     return output_file_path
 
 # Define DAG
@@ -590,7 +477,7 @@ dag = DAG(
     'data_preprocessing',
     default_args=default_args,
     description='A DAG to preprocess sales data',
-    schedule_interval=timedelta(minutes=5),
+    schedule_interval=timedelta(minutes=20),
     start_date=days_ago(1),
     tags=['sales', 'preprocessing'],
 )
@@ -823,24 +710,72 @@ merge_items_with_sales_and_shops_task = PythonOperator(
     dag=dag,
 )
 
-add_shop_and_item_age_task = PythonOperator(
-    task_id='add_shop_and_item_age',
-    python_callable=add_shop_and_item_age,
+downcast_values_task = PythonOperator(
+    task_id='downcast_values',
+    python_callable=downcast_values,
     provide_context=True,
     dag=dag,
 )
 
-add_time_features_task = PythonOperator(
-    task_id='add_time_features',
-    python_callable=add_time_features,
+add_lag_item_cnt_month_task = PythonOperator(
+    task_id='add_lag_item_cnt_month',
+    python_callable=lag_feature,
+    provide_context=True,
+    op_kwargs={
+        'prev_task_id': 'downcast_values',
+        'lags': [1,2,3],
+        'cols': ["item_cnt_month"]
+    },
+    dag=dag,
+)
+
+add_date_avg_item_cnt_task = PythonOperator(
+    task_id='add_date_avg_item_cnt',
+    python_callable=add_date_avg_item_cnt,
     provide_context=True,
     dag=dag,
 )
 
-add_price_features_task = PythonOperator(
-    task_id='add_price_features',
-    python_callable=add_price_features,
+add_lag_date_avg_item_cnt_task = PythonOperator(
+    task_id='add_lag_date_avg_item_cnt',
+    python_callable=lag_feature,
     provide_context=True,
+    op_kwargs={
+        'prev_task_id': 'add_date_avg_item_cnt',
+        'lags': [1],
+        'cols': ["date_avg_item_cnt"],
+        'drop_cols': True
+    },
+    dag=dag,
+)
+
+add_date_item_avg_item_cnt_task = PythonOperator(
+    task_id='add_date_item_avg_item_cnt',
+    python_callable=add_date_item_avg_item_cnt,
+    provide_context=True,
+    dag=dag,
+)
+
+add_lag_date_item_avg_item_cnt_task = PythonOperator(
+    task_id='add_lag_date_item_avg_item_cnt',
+    python_callable=lag_feature,
+    provide_context=True,
+    op_kwargs={
+        'prev_task_id': 'add_date_item_avg_item_cnt',
+        'lags': [1,2,3],
+        'cols': ["date_item_avg_item_cnt"],
+        'drop_cols': True
+    },
+    dag=dag,
+)
+
+save_final_csv_task = PythonOperator(
+    task_id='save_final_csv',
+    python_callable=save_final_csv,
+    provide_context=True,
+    op_kwargs={
+        'prev_task_id': 'add_lag_date_item_avg_item_cnt'
+    },
     dag=dag,
 )
 
@@ -862,5 +797,6 @@ load_shops_task >> add_shop_city_task >> add_shop_type_task >> encode_shops_task
 
 [merge_items_with_categories_task, merge_shops_with_sales_task] >> merge_items_with_sales_and_shops_task
 
-merge_items_with_sales_and_shops_task >> add_shop_and_item_age_task >> add_time_features_task >> update_block_num_task
-add_time_features_task >> add_price_features_task >> update_block_num_task
+merge_items_with_sales_and_shops_task >> downcast_values_task >> add_lag_item_cnt_month_task 
+add_lag_item_cnt_month_task >> add_date_avg_item_cnt_task >> add_lag_date_avg_item_cnt_task >> add_date_item_avg_item_cnt_task
+add_date_item_avg_item_cnt_task >> add_lag_date_item_avg_item_cnt_task >> save_final_csv_task >> update_block_num_task
