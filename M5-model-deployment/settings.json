@@ -1,0 +1,101 @@
+{
+    "general": {
+        "chunk_size": 8192,
+        "seed_value": 42,
+        "fallback_uri": "http://127.0.0.1:5000",
+        "experiment_name": "Brain Tumor Prediction",
+        "data_commit_hash": "af2e00248b4ebdcc3706654855a341d15582073e",
+        "repo_owner": "jannaiklaas",
+        "repo_name": "datasets",
+        "dir_path": "brain_tumor_dataset",
+        "branch": "main",
+        "code_dir": "/code"
+    },
+    "urls": {
+        "base_model": "https://raw.githubusercontent.com/zdata-inc/applied_deep_learning/master/vgg16_weights_tf_dim_ordering_tf_kernels_notop.h5",
+        "data_no": "https://raw.githubusercontent.com/jannaiklaas/datasets/main/brain_tumor_dataset/no.zip",
+        "data_yes": "https://raw.githubusercontent.com/jannaiklaas/datasets/main/brain_tumor_dataset/yes.zip"
+    },
+    "directories": {
+        "data": "data",
+        "inference_data": "inference",
+        "models": "models",
+        "raw_data": "raw",
+        "results": "results",
+        "train_data": "train"
+    },
+    "files": {
+        "inference_data": "inference_images.npy",
+        "inference_labels": "inference_labels.npy",
+        "metrics_file": "metrics.txt",
+        "train_images": "train_images.npy",
+        "train_labels": "train_labels.npy"
+    },
+    "preprocess": {
+        "blur_kernel": [
+            5,
+            5
+        ],
+        "blur_sigma": 0,
+        "dilate_iter": 2,
+        "erode_iter": 2,
+        "max_binary_value": 255,
+        "threshold_value": 45
+    },
+    "augmentation": {
+        "height_shift_range": 0.1,
+        "horizontal_flip": true,
+        "rotation_range": 20,
+        "shear_range": 0.1,
+        "vertical_flip": true,
+        "width_shift_range": 0.1,
+        "zoom_range": 0.1
+    },
+    "model": {
+        "dropout_rate": 0.5,
+        "input_shape": [
+            128,
+            128,
+            3
+        ],
+        "learning_rate": 1e-05,
+        "regularization_rate": 0.001,
+        "kernel_size": [
+            3,
+            3
+        ],
+        "pool_size": [
+            2,
+            2
+        ],
+        "activation": "relu"
+    },
+    "training": {
+        "batch_size": 32,
+        "decision_threshold": 0.5,
+        "early_stop_patience": 5,
+        "epochs": 200,
+        "min_lr": 1e-07,
+        "reduce_lr_factor": 0.1,
+        "reduce_lr_patience": 5,
+        "val_size": 0.1
+    },
+    "inference": {
+        "infer_size": 0.1
+    },
+    "exp_1": {
+        "script_file_path": "src/train/exp_1/train.py",
+        "model_name": "model_exp_1.keras",
+        "artifact_path": "model_exp_1"
+    },
+    "exp_2": {
+        "script_file_path": "src/train/exp_2/train.py",
+        "model_name": "model_exp_2.keras",
+        "artifact_path": "model_exp_2"
+    },
+    "exp_3": {
+        "script_file_path": "src/train/exp_3/train.py",
+        "model_name": "model_exp_3.keras",
+        "artifact_path": "model_exp_3"
+    }
+}

@@ -1,0 +1,6 @@
+numpy==1.23.5
+scikit_learn==1.2.2
+requests==2.31.0
+tensorflow==2.16.1
+opencv-python==4.9.0.80
+Flask==2.2.5

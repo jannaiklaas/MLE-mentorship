@@ -11,6 +11,7 @@ results/
 mlruns/
 mlartifacts/
 airflow-data/
+artifacts/
 
 # File Extensions
 *.csv
