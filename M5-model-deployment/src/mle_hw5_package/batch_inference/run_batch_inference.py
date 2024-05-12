@@ -19,16 +19,17 @@ ROOT_DIR = os.path.dirname(
             os.path.dirname(
                 os.path.dirname(
                     os.path.abspath(__file__)))))
-sys.path.append(ROOT_DIR)
+PACKAGE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(PACKAGE_DIR)
 
-CONF_FILE = os.path.join(ROOT_DIR, 'config','settings.json')
+CONF_FILE = os.path.join(PACKAGE_DIR, 'config/settings.json')
 with open(CONF_FILE, 'r') as file:
         conf = json.load(file)
-MODEL_DIR = os.path.join(ROOT_DIR, 'src', 'mle_hw5_package', 'models')
+MODEL_DIR = os.path.join(ROOT_DIR, conf['directories']['models'])
 DATA_DIR = os.path.join(ROOT_DIR, conf['directories']['data'])
-INFERENCE_DIR = os.path.join(DATA_DIR, 'inference_images')
+INFERENCE_DIR = os.path.join(DATA_DIR, conf['directories']['inference_data'])
 
-from src.mle_hw5_package.preprocess import preprocess_images
+from preprocess import preprocess_images
 
 def do_nothing(**kwargs):
     print("No data available for processing.")
@@ -40,15 +41,15 @@ def check_data_availability(inference_dir = INFERENCE_DIR):
             return 'check_model_availability'      
     return 'end_task'
 
-def check_model_availability(model_name='model_1.keras'):
-    model_path = os.path.join(MODEL_DIR, model_name) 
+def check_model_availability(model_dir=MODEL_DIR, model_name=conf['model']['name']+conf['model']['extension']):
+    model_path = os.path.join(model_dir, model_name) 
     if not os.path.exists(model_path):
         print(f"No trained model found at {model_path}. "
                                 "Please train the model first.")
         return 'end_task'
     return 'run_inference' 
     
-def get_data(inference_dir = INFERENCE_DIR, **kwargs):
+def get_data(inference_dir = INFERENCE_DIR):
     images = []
     all_files_checked = True
     for filename in os.listdir(inference_dir):
@@ -65,14 +66,17 @@ def get_data(inference_dir = INFERENCE_DIR, **kwargs):
     return np.array(images)
 
 
-def run_inference(model_name='model_1.keras', **kwargs):
+def run_inference(model_dir=MODEL_DIR,
+                  model_name=conf['model']['name']+conf['model']['extension'], 
+                  inference_dir = INFERENCE_DIR,
+                  output_path=ROOT_DIR):
     images_array = get_data()
     X = preprocess_images(images_array=images_array)
-    model_path = os.path.join(MODEL_DIR, model_name) 
+    model_path = os.path.join(model_dir, model_name) 
     model = load_model(model_path)
     preds=model.predict(X)
-    output_dir = os.path.join(ROOT_DIR, 'batch_predictions')
-    save_preds(preds, INFERENCE_DIR, output_dir)
+    output_dir = os.path.join(output_path, 'batch_predictions')
+    save_preds(preds, inference_dir, output_dir)
 
 def save_preds(preds, inference_dir, output_dir, **kwargs):
     results = []
@@ -82,7 +86,7 @@ def save_preds(preds, inference_dir, output_dir, **kwargs):
             if os.path.isfile(file_path):
                 # Create a dictionary for each file
                 prob = preds[idx][0]
-                diagnosis = 'yes' if prob > 0.5 else 'no'
+                diagnosis = 'yes' if prob > conf['training']['decision_threshold'] else 'no'
                 results.append({
                     "file_name": filename,
                     "probability": prob,
@@ -103,15 +107,15 @@ default_args = {
     'email_on_failure': False,
     'email_on_retry': False,
     'retries': 1,
-    'retry_delay': timedelta(minutes=1),
+    'retry_delay': timedelta(minutes=conf['airflow']['retry_delay']),
 }
 
 dag = DAG(
     'brain_tumor_prediction',
     default_args=default_args,
     description='A DAG to predict brain tumor',
-    schedule_interval=timedelta(hours=12),
-    start_date=days_ago(1),
+    schedule_interval=timedelta(hours=conf['airflow']['schedule_interval']),
+    start_date=days_ago(conf['airflow']['start_days_ago']),
     tags=['brain_tumor', 'prediction', 'inference'],
 )
 check_data_task = BranchPythonOperator(

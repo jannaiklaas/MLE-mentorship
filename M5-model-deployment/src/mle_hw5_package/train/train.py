@@ -2,11 +2,7 @@ import os
 import sys
 import json
 import time
-import mlflow
 import logging
-import hashlib
-from datetime import datetime
-import platform
 import numpy as np
 from keras.models import Model
 from keras.utils import get_file
@@ -18,7 +14,6 @@ from sklearn.metrics import accuracy_score, f1_score, precision_score, \
     recall_score, roc_auc_score
 from keras.applications import VGG16
 from keras import regularizers
-from mlflow.models import infer_signature
 
 
 # Define directories
@@ -27,16 +22,17 @@ ROOT_DIR = os.path.dirname(
             os.path.dirname(
                 os.path.dirname(
                     os.path.abspath(__file__)))))
-sys.path.append(ROOT_DIR)
+PACKAGE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(PACKAGE_DIR)
 
-CONF_FILE = os.path.join(ROOT_DIR, 'settings.json')
+CONF_FILE = os.path.join(PACKAGE_DIR, 'config/settings.json')
 
 # Load configuration settings from JSON
 with open(CONF_FILE, "r") as file:
     conf = json.load(file)
 
-from src.mle_hw5_package.preprocess import preprocess_images, augment_data
-from src.mle_hw5_package.utils import set_seed
+from preprocess import preprocess_images, augment_data
+from utils import set_seed
 
 DATA_DIR = os.path.join(ROOT_DIR, conf['directories']['data'])
 TRAIN_DIR = os.path.join(DATA_DIR, conf['directories']['train_data'])
@@ -46,26 +42,13 @@ MODEL_DIR = os.path.join(ROOT_DIR, conf['directories']['models'])
 RESULTS_DIR = os.path.join(ROOT_DIR, conf['directories']['results'])
 BASE_MODEL_URL = conf['urls']['base_model']
 
-TRAIN_FILE_PATH =  os.path.join(ROOT_DIR, conf['exp_3']['script_file_path'])
-MLFLOW_TRACKING_URI = os.getenv('MLFLOW_TRACKING_URI', conf['general']['fallback_uri'])
-MLFLOW_EXPERIMENT_NAME = conf['general']['experiment_name']
-
-def file_hash(filepath):
-    with open(filepath, 'rb') as f:
-        file_hash = hashlib.sha256(f.read()).hexdigest()
-    return file_hash
-
-def load_data():
-    X = preprocess_images(TRAIN_IMAGES_PATH)
-    y = np.load(TRAIN_LABELS_PATH, allow_pickle=True)
+def load_data(images_path, train_label_path):
+    X = preprocess_images(images_path)
+    y = np.load(train_label_path, allow_pickle=True)
     X_train, X_val, y_train, y_val = train_test_split(X, y, 
                                                         test_size=conf['training']['val_size'], 
                                                         random_state=conf['general']['seed_value'])
     logging.info(f"Model will be trained with {X_train.shape[0]} and validated with {X_val.shape[0]} images")
-
-    mlflow.log_param("train_images_shape", str(X_train.shape))
-    mlflow.log_param("val_images_shape", str(X_val.shape))
-
     return X_train, X_val, y_train, y_val
 
 def define_model():
@@ -104,7 +87,6 @@ def train_model(base_model, predictions, train_generator, val_generator):
         validation_data=val_generator,
         callbacks=[early_stopping, reduce_lr]
     )
-    mlflow.log_param("model_name", conf['exp_3']['model_name'])
     logging.info("Training complete.")
     return model
 
@@ -120,39 +102,52 @@ def evaluate_model(model, X, y_true, training_time,
             'AUC ROC': roc_auc_score(y_true, predictions),
             'Training duration': training_time
         }
-    for metric_name, value in metrics.items():
-        mlflow.log_metric(metric_name, value)
+    logging.info("Validation performance metrics:\n"
+                     f"Accuracy: {metrics['Accuracy']: .4f}\n"
+                     f"Precision: {metrics['Precision']: .4f}\n"
+                     f"Recall: {metrics['Accuracy']: .4f}\n"
+                     f"F1 score: {metrics['F1 Score']: .4f}\n"
+                     f"AUC ROC: {metrics['AUC ROC']: .4f}\n")
+    logging.info("Saving performance metrics...")
+    if not os.path.exists(RESULTS_DIR):
+        os.makedirs(RESULTS_DIR, exist_ok=True)
+    os.chmod(RESULTS_DIR, 0o775)
+    path = os.path.join(RESULTS_DIR, conf['files']['metrics_file'])
+    metrics_str = "\n".join([f"{key}: {value}" for key, value in metrics.items()])
+    with open(path, "a") as file:
+        file.write(metrics_str + "\n\n")
+    os.chmod(path, 0o664)
+    logging.info(f"Metrics saved to {path}")
 
-def main():
-    mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
-    mlflow.set_experiment(MLFLOW_EXPERIMENT_NAME)
+def save_model(model, path, 
+               model_name) -> None:
+    """Saves the trained model to the specified path."""
+    logging.info("Saving the model...")
+    if not os.path.exists(path):
+        os.makedirs(path, exist_ok=True)
+    os.chmod(path, 0o775)
+    model_path = os.path.join(path, model_name)
+    model.save(model_path)
+    os.chmod(model_path, 0o664)  
+    logging.info(f"Model saved to {model_path}")
+
+def run_training(images_path=TRAIN_IMAGES_PATH,
+                 train_label_path = TRAIN_LABELS_PATH,
+                 model_output_path=MODEL_DIR, 
+                 model_name=conf['model']['name']+conf['model']['extension']):
     os.umask(0o002)
     set_seed(conf['general']['seed_value'])
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-    run_name = conf['exp_3']['model_name']+'_'+datetime.now().strftime("%d-%m-%Y %H:%M:%S")
+    X_train, X_val, y_train, y_val = load_data(images_path, train_label_path)
+    train_generator, val_generator = augment_data(X_train, y_train, X_val, y_val)
+    base_model, predictions = define_model()
+    start_time = time.time()
+    model = train_model(base_model, predictions, train_generator, val_generator)
+    evaluate_model(model, X_val, y_val, time.time()-start_time)
+    save_model(model, model_output_path, model_name)
 
-    with mlflow.start_run(run_name=run_name):
-        X_train, X_val, y_train, y_val = load_data()
-        train_generator, val_generator = augment_data(X_train, y_train, X_val, y_val)
-        base_model, predictions = define_model()
-        start_time = time.time()
-        model = train_model(base_model, predictions, train_generator, val_generator)
-        evaluate_model(model, X_val, y_val, time.time()-start_time)
-        mlflow.keras.log_model(
-            model=model,
-            artifact_path=conf['exp_3']['artifact_path'],
-            signature=infer_signature(X_val, model.predict(X_val)),
-            registered_model_name=conf['exp_3']['model_name']
-        )
-        mlflow.log_param("operating_system", platform.platform())
-        mlflow.log_param("train_script_hash", file_hash(TRAIN_FILE_PATH))
-        mlflow.log_artifact(os.path.join(ROOT_DIR, 'requirements.txt'), 
-                            conf['exp_3']['artifact_path'])
-        mlflow.log_artifact(os.path.join(ROOT_DIR, 'settings.json'), 
-                            conf['exp_3']['artifact_path'])
-        mlflow.log_artifact(TRAIN_FILE_PATH, conf['exp_3']['artifact_path']+\
-                            conf['general']['code_dir'])
-
+def main():
+    run_training()
 
 
 # Executing the script

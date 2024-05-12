@@ -15,24 +15,27 @@ os.path.dirname(
             os.path.dirname(
                 os.path.dirname(
                     os.path.abspath(__file__))))))
-sys.path.append(ROOT_DIR)
+PACKAGE_DIR = os.path.dirname(
+    os.path.dirname(
+        os.path.dirname(
+            os.path.abspath(__file__))))
+sys.path.append(PACKAGE_DIR)
 
-CONF_FILE = os.path.join(ROOT_DIR, 'config/settings.json')
-MODEL_DIR = os.path.join(ROOT_DIR, 'src/mle_hw5_package/models')
-
+CONF_FILE = os.path.join(PACKAGE_DIR, 'config/settings.json')
+MODEL_DIR = os.path.join(ROOT_DIR, 'models')
 
 # Load configuration settings from JSON
 with open(CONF_FILE, "r") as file:
     conf = json.load(file)
     
-from src.mle_hw5_package.preprocess import preprocess_images
+from preprocess import preprocess_images
 
 model = None
 
-def get_model(model_name='model_1.keras'):
+def get_model(model_dir=MODEL_DIR, model_name=conf['model']['name']+conf['model']['extension']):
     """Loads and returns a trained model."""
     global model
-    model_path = os.path.join(MODEL_DIR, model_name)  # Adjusted for directory path
+    model_path = os.path.join(model_dir, model_name)  # Adjusted for directory path
     if not os.path.exists(model_path):
         raise FileNotFoundError(f"No trained model found at {model_path}. "
                                 "Please train the model first.")
@@ -78,4 +81,4 @@ if __name__ == "__main__":
     print(("* Loading Keras model and Flask starting server..."
         "please wait until server has fully started"))
     get_model()
-    app.run(host='0.0.0.0', port=1234)
+    app.run(host=conf['flask']['host'], port=conf['flask']['port'])

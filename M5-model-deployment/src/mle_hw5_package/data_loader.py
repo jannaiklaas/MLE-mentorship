@@ -12,20 +12,18 @@ from sklearn.utils import shuffle
 from sklearn.model_selection import train_test_split
 
 # Define directories
-ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.append(ROOT_DIR)
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+PACKAGE_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(PACKAGE_DIR)
 
-CONF_FILE = os.path.join(ROOT_DIR, 'config/settings.json')
+from utils import set_seed
+
+CONF_FILE = os.path.join(PACKAGE_DIR, 'config/settings.json')
 # Load configuration settings from JSON
 with open(CONF_FILE, "r") as file:
     conf = json.load(file)
 
 DATA_DIR = os.path.join(ROOT_DIR, conf['directories']['data'])
-RAW_DATA_DIR = os.path.join(DATA_DIR, conf['directories']['raw_data'])
-TRAIN_DIR = os.path.join(DATA_DIR, conf['directories']['train_data'])
-INFERENCE_DIR = os.path.join(DATA_DIR, conf['directories']['inference_data'])
-
-from src.mle_hw5_package.utils import set_seed
 
 # Create logger
 logger = logging.getLogger(__name__)
@@ -36,40 +34,17 @@ DATA_URLS = {
     "no": conf['urls']['data_no']
 }
 
-def get_latest_commit_hash(repo_owner, repo_name, dir_path=None, branch='main'):
-    # Construct the API URL with optional directory path and branch
-    url = f"https://api.github.com/repos/{repo_owner}/{repo_name}/commits?sha={branch}"
-    if dir_path:
-        url += f"&path={dir_path}"
-    url += "&per_page=1"  # Fetch only the latest commit
-    
-    # Make the GET request to GitHub API
-    response = requests.get(url)
-    response.raise_for_status()  # Raise an error for unsuccessful requests
-    commits = response.json()
-    
-    # Return the hash of the latest commit, if any
-    if commits:
-        return commits[0]['sha']
-    return None
-
-def update_config_with_commit_hash(commit_hash, config_file):
-    with open(config_file, "r+") as file:
-        conf = json.load(file)
-        # Navigate to the specific nested dictionary if necessary
-        conf['general']['data_commit_hash'] = commit_hash
-        # Reset file position to the beginning and truncate to overwrite
-        file.seek(0)
-        json.dump(conf, file, indent=4)
-        file.truncate()
-
 # Define methods
-def setup_directories() -> None:
+def setup_directories(data_output_path) -> None:
     """Create required directories if they don't exist."""
-    for directory in [RAW_DATA_DIR, TRAIN_DIR, INFERENCE_DIR]:
+    raw_data_dir = os.path.join(data_output_path, conf['directories']['raw_data'])
+    train_dir = os.path.join(data_output_path, conf['directories']['train_data'])
+    inference_dir = os.path.join(data_output_path, conf['directories']['inference_data'])
+    for directory in [raw_data_dir, train_dir, inference_dir]:
         if not os.path.exists(directory):
             os.makedirs(directory)
             logger.info(f"Created directory: {directory}")
+    return raw_data_dir, train_dir, inference_dir
 
 def download_file(url: str, filename: str) -> None:
     """Download file from a given URL and save it to a specified filename."""
@@ -84,11 +59,11 @@ def download_file(url: str, filename: str) -> None:
         logger.error(f"Error downloading {url}: {e}")
         sys.exit(1)
 
-def download_and_extract_data() -> None:
+def download_data(raw_data_dir) -> None:
     """Download and extract data into the 'raw' directory."""
     for label, url in DATA_URLS.items():
-        target_dir = os.path.join(RAW_DATA_DIR, label)
-        zip_file_path = os.path.join(RAW_DATA_DIR, f"{label}.zip")
+        target_dir = os.path.join(raw_data_dir, label)
+        zip_file_path = os.path.join(raw_data_dir, f"{label}.zip")
 
         if not os.path.exists(target_dir):
             os.makedirs(target_dir)
@@ -96,7 +71,7 @@ def download_and_extract_data() -> None:
 
         # Download and extract ZIP file
         download_file(url, zip_file_path)
-        temp_extraction_path = os.path.join(RAW_DATA_DIR, 'temp')
+        temp_extraction_path = os.path.join(raw_data_dir, 'temp')
         shutil.unpack_archive(zip_file_path, temp_extraction_path)
         logger.info(f"Extracted '{label}' data into temporary directory")
 
@@ -115,30 +90,29 @@ def download_and_extract_data() -> None:
         shutil.rmtree(temp_extraction_path)
         logger.info(f"Cleaned up temporary files for '{label}'")
 
-
-
-def load_split_data() -> None:
+def split_data(raw_data_dir, train_dir, inference_dir) -> None:
     """Load data from 'raw' directory, split into train and inference, and save."""
     set_seed(42)
-    path_yes = os.path.join(RAW_DATA_DIR, 'yes', '*')
-    path_no = os.path.join(RAW_DATA_DIR, 'no', '*')
+    path_yes = os.path.join(raw_data_dir, 'yes', '*')
+    path_no = os.path.join(raw_data_dir, 'no', '*')
     tumor = []
     no_tumor = []
 
     # Read and collect data
     for file in glob.iglob(path_yes):
         img = cv2.imread(file)
-        tumor.append(img)
+        tumor.append((img, 1))
 
     for file in glob.iglob(path_no):
         img = cv2.imread(file)
-        no_tumor.append(img)
+        no_tumor.append((img, 0))
 
     # Shuffle and split
     all_data = tumor + no_tumor
-    labels = [1] * len(tumor) + [0] * len(no_tumor)
-    X_shuffled, y_shuffled = shuffle(all_data, labels, random_state=conf['general']['seed_value'])
-    X_train, X_inference = train_test_split(X_shuffled, 
+    X = np.array([item[0] for item in all_data])
+    y = np.array([item[1] for item in all_data])
+    X_shuffled, y_shuffled = shuffle(X, y, random_state=conf['general']['seed_value'])
+    X_train, X_inference, y_train, y_inference = train_test_split(X_shuffled, y_shuffled,
                                             test_size=conf['inference']['infer_size'], 
                                             random_state=conf['general']['seed_value'])
     
@@ -146,32 +120,27 @@ def load_split_data() -> None:
     logger.info(f"Inference set contains {len(X_inference)} images")
 
     # Save training data to .npy files
-    np.save(os.path.join(TRAIN_DIR, "train_images.npy"), X_train)
-    np.save(os.path.join(TRAIN_DIR, "train_labels.npy"), y_shuffled[:len(X_train)])
-    logger.info(f"Saved training data and labels to {TRAIN_DIR}")
-    os.makedirs(INFERENCE_DIR, exist_ok=True)
+    np.save(os.path.join(train_dir, "train_images.npy"), X_train)
+    np.save(os.path.join(train_dir, "train_labels.npy"), y_train)
+    logger.info(f"Saved training data and labels to {train_dir}")
+    os.makedirs(inference_dir, exist_ok=True)
 
     for i, img in enumerate(X_inference):
         filename = f"{i}.png"
-        cv2.imwrite(os.path.join(INFERENCE_DIR, filename), img)
+        cv2.imwrite(os.path.join(inference_dir, filename), img)
 
-    logger.info(f"Saved inference images to {INFERENCE_DIR}")
+    logger.info(f"Saved inference images to {inference_dir}")
+
+def download_split_data(data_output_path=DATA_DIR):
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+    raw_data_dir, train_dir, inference_dir = setup_directories(data_output_path)
+    download_data(raw_data_dir)
+    split_data(raw_data_dir, train_dir, inference_dir)
 
 
 def main() -> None:
     """Main method."""
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-    setup_directories()
-    download_and_extract_data()
-    load_split_data()
-
-    data_commit_hash = get_latest_commit_hash(conf['general']['repo_owner'], 
-                                              conf['general']['repo_name'], 
-                                              conf['general']['dir_path'], 
-                                              conf['general']['branch'])
-    if data_commit_hash:
-        update_config_with_commit_hash(data_commit_hash, CONF_FILE)
-        logger.info(f"Updated settings.json with the latest data commit hash: {data_commit_hash}")
+    download_split_data()
 
 # Executing the script
 if __name__ == "__main__":

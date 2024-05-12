@@ -1,15 +1,7 @@
 {
     "general": {
         "chunk_size": 8192,
-        "seed_value": 42,
-        "fallback_uri": "http://127.0.0.1:5000",
-        "experiment_name": "Brain Tumor Prediction",
-        "data_commit_hash": "af2e00248b4ebdcc3706654855a341d15582073e",
-        "repo_owner": "jannaiklaas",
-        "repo_name": "datasets",
-        "dir_path": "brain_tumor_dataset",
-        "branch": "main",
-        "code_dir": "/code"
+        "seed_value": 42
     },
     "urls": {
         "base_model": "https://raw.githubusercontent.com/zdata-inc/applied_deep_learning/master/vgg16_weights_tf_dim_ordering_tf_kernels_notop.h5",
@@ -25,8 +17,6 @@
         "train_data": "train"
     },
     "files": {
-        "inference_data": "inference_images.npy",
-        "inference_labels": "inference_labels.npy",
         "metrics_file": "metrics.txt",
         "train_images": "train_images.npy",
         "train_labels": "train_labels.npy"
@@ -68,7 +58,9 @@
             2,
             2
         ],
-        "activation": "relu"
+        "activation": "relu",
+        "name": "model_1",
+        "extension": ".keras"
     },
     "training": {
         "batch_size": 32,
@@ -83,19 +75,19 @@
     "inference": {
         "infer_size": 0.1
     },
-    "exp_1": {
-        "script_file_path": "src/train/exp_1/train.py",
-        "model_name": "model_exp_1.keras",
-        "artifact_path": "model_exp_1"
+    "airflow": {
+        "retry_delay": 1,
+        "schedule_interval": 12,
+        "start_days_ago": 1
     },
-    "exp_2": {
-        "script_file_path": "src/train/exp_2/train.py",
-        "model_name": "model_exp_2.keras",
-        "artifact_path": "model_exp_2"
-    },
-    "exp_3": {
-        "script_file_path": "src/train/exp_3/train.py",
-        "model_name": "model_exp_3.keras",
-        "artifact_path": "model_exp_3"
+    "flask": {
+        "success": 200,
+        "retries": 5,
+        "delay": 10,
+        "docker_server": "http://server:1234/predict",
+        "local_server": "http://localhost:1234/predict",
+        "default_example": "inference_images/5.png",
+        "port": 1234,
+        "host": "0.0.0.0"
     }
 }

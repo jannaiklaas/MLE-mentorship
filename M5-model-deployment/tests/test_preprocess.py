@@ -9,12 +9,13 @@ from unittest.mock import patch
 # Load the config settings required for testing
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(ROOT_DIR)
+PACKAGE_DIR = os.path.join(ROOT_DIR, 'src', 'mle_hw5_package')
 
-CONF_FILE = os.path.join(ROOT_DIR, 'config/settings.json')
+CONF_FILE = os.path.join(PACKAGE_DIR, 'config/settings.json')
 with open(CONF_FILE, "r") as file:
     conf = json.load(file)
 
-from src.mle_hw5_package.preprocess import crop_brain_region, preprocess_images, augment_data
+from mle_hw5_package.preprocess import crop_brain_region, preprocess_images, augment_data
 
 def mock_threshold(image, thresh_value, max_value, type):
     # Create a clear binary image where the bright rectangle will definitely be above the threshold

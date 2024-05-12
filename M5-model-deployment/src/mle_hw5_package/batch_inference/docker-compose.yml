@@ -5,14 +5,13 @@ services:
       dockerfile: ./src/mle_hw5_package/batch_inference/Dockerfile
     environment:
       - AIRFLOW__CORE__SQL_ALCHEMY_CONN=sqlite:////opt/airflow/airflow.db
-      - AIRFLOW__CORE__DAGS_FOLDER=/opt/airflow/batch_inference
+      - AIRFLOW__CORE__DAGS_FOLDER=/opt/airflow/src/mle_hw5_package/batch_inference
     volumes:
       - ../../../airflow-data:/opt/airflow
-      - ./:/opt/airflow/src/mle_hw5_package/batch_inference
       - ../../../data/inference_images:/opt/airflow/data/inference_images
-      - ../../../config:/opt/airflow/config
-      - ../../../src/mle_hw5_package:/opt/airflow/src/mle_hw5_package
-      - ../../../batch_predictions:/opt/airflow/bathc_predictions
+      - ../../../models:/opt/airflow/models
+      - ../:/opt/airflow/src/mle_hw5_package
+      - ../../../batch_predictions:/opt/airflow/batch_predictions
     command: db migrate
     restart: "no"
 
@@ -25,17 +24,16 @@ services:
       - airflow-init
     environment:
       - AIRFLOW__CORE__SQL_ALCHEMY_CONN=sqlite:////opt/airflow/airflow.db
-      - AIRFLOW__CORE__DAGS_FOLDER=/opt/airflow/batch_inference
+      - AIRFLOW__CORE__DAGS_FOLDER=/opt/airflow/src/mle_hw5_package/batch_inference
       - LOAD_EX=n
     ports:
       - "8080:8080"
     volumes:
       - ../../../airflow-data:/opt/airflow
-      - ./:/opt/airflow/src/mle_hw5_package/batch_inference
       - ../../../data/inference_images:/opt/airflow/data/inference_images
-      - ../../../config:/opt/airflow/config
-      - ../../../src/mle_hw5_package:/opt/airflow/src/mle_hw5_package
-      - ../../../batch_predictions:/opt/airflow/bathc_predictions
+      - ../../../models:/opt/airflow/models
+      - ../:/opt/airflow/src/mle_hw5_package
+      - ../../../batch_predictions:/opt/airflow/batch_predictions
     command: webserver
 
   airflow-scheduler:
@@ -50,11 +48,10 @@ services:
       - AIRFLOW__CORE__DAGS_FOLDER=/opt/airflow/src/mle_hw5_package/batch_inference
     volumes:
       - ../../../airflow-data:/opt/airflow
-      - ./:/opt/airflow/src/mle_hw5_package/batch_inference
       - ../../../data/inference_images:/opt/airflow/data/inference_images
-      - ../../../config:/opt/airflow/config
-      - ../../../src/mle_hw5_package:/opt/airflow/src/mle_hw5_package
-      - ../../../batch_predictions:/opt/airflow/bathc_predictions
+      - ../../../models:/opt/airflow/models
+      - ../:/opt/airflow/src/mle_hw5_package
+      - ../../../batch_predictions:/opt/airflow/batch_predictions
     command: scheduler
 
 volumes:

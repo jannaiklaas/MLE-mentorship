@@ -6,10 +6,10 @@ import logging
 import numpy as np
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 
-ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.append(ROOT_DIR)
+PACKAGE_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(PACKAGE_DIR)
 
-CONF_FILE = os.path.join(ROOT_DIR, 'config/settings.json')
+CONF_FILE = os.path.join(PACKAGE_DIR, 'config/settings.json')
 
 # Load configuration settings from JSON
 with open(CONF_FILE, "r") as file:
@@ -31,10 +31,11 @@ def preprocess_images(images_path=None, images_array=None):
 def crop_brain_region(image, size):
     gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
     gray = cv2.GaussianBlur(gray, conf['preprocess']['blur_kernel'], conf['preprocess']['blur_sigma'])
-    _, thresh = cv2.threshold(gray, conf['preprocess']['threshold_value'], conf['preprocess']['max_binary_value'], cv2.THRESH_BINARY)
+    _, thresh = cv2.threshold(gray, conf['preprocess']['threshold_value'], 
+                              conf['preprocess']['max_binary_value'], cv2.THRESH_BINARY)
     thresh = cv2.erode(thresh, None, iterations=conf['preprocess']['erode_iter'])
     thresh = cv2.dilate(thresh, None, iterations=conf['preprocess']['dilate_iter'])
-    contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    contours, _ = cv2.findContours(thresh.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
     if contours:
         c = max(contours, key=cv2.contourArea)

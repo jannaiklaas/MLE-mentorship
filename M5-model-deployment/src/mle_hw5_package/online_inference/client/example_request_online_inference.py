@@ -14,22 +14,26 @@ os.path.dirname(
             os.path.dirname(
                 os.path.dirname(
                     os.path.abspath(__file__))))))
-sys.path.append(ROOT_DIR)
+PACKAGE_DIR = os.path.dirname(
+    os.path.dirname(
+        os.path.dirname(
+            os.path.abspath(__file__))))
 
-CONF_FILE = os.path.join(ROOT_DIR, 'config/settings.json')
+sys.path.append(PACKAGE_DIR)
+CONF_FILE = os.path.join(PACKAGE_DIR, 'config/settings.json')
 
 # Load configuration settings from JSON
 with open(CONF_FILE, "r") as file:
     conf = json.load(file)
 
 DATA_DIR = os.path.join(ROOT_DIR, conf['directories']['data'])
-DEFAULT_EXAMPLE = "inference_images/5.png"
+DEFAULT_EXAMPLE = conf['flask']['default_example']
 
 # Decide the API URL based on the environment variable
 if os.getenv("DOCKER_ENV") == "TRUE":
-    KERAS_REST_API_URL = "http://server:1234/predict"
+    KERAS_REST_API_URL = conf['flask']['docker_server']
 else:
-    KERAS_REST_API_URL = "http://localhost:1234/predict"
+    KERAS_REST_API_URL = conf['flask']['local_server']
 
 # Setup command-line argument parsing
 parser = argparse.ArgumentParser(description="Send an image to the Keras REST API for prediction")
@@ -46,11 +50,11 @@ if args.image==DEFAULT_EXAMPLE:
 else:
     IMAGE_PATH = args.image
 
-def wait_for_server(url, image_path, retries=5, delay=10):
+def wait_for_server(url, image_path, retries=conf['flask']['retries'], delay=conf['flask']['delay']):
     """Attempts to send the request repeatedly until success or max retries reached."""
     for i in range(retries):
         response = send_request(url, image_path)
-        if response and response.status_code == 200:
+        if response and response.status_code == conf['flask']['success']:
             return response
         else:
             print(f"Attempt {i+1}/{retries} failed, waiting {delay} seconds...")
@@ -72,9 +76,9 @@ def send_request(url, image_path):
 
 response = wait_for_server(KERAS_REST_API_URL, IMAGE_PATH)
 
-if response and response.status_code == 200:
+if response and response.status_code == conf['flask']['success']:
     result = response.json()[0][0]
-    diagnosis = "positive for brain tumor" if result > 0.5 else "negative for brain tumor"
+    diagnosis = "positive for brain tumor" if result > conf['training']['decision_threshold'] else "negative for brain tumor"
     print(f"Probability: {result * 100:.2f}%. Diagnosis: {diagnosis}.")
 else:
     print("Request failed.")

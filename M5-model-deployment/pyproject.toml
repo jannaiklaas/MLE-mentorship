@@ -1,0 +1,30 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.metadata.files]
+packages = [
+    {  include = "mle_hw5_package/**" }
+]
+
+[tool.hatch.build.targets.wheel]
+exclude = ["__pycache__/", "**/*.pyc"]
+
+[project]
+name = "mle_hw5_package"
+version = "0.0.9"
+authors = [
+  { name="Janna Iklaas", email="jannaiklaas@yahoo.com" },
+]
+description = "Brain tumor prediction package"
+readme = "README.md"
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+Homepage = "https://github.com/jannaiklaas/MLE-mentorship/M5-model-deployment"
+Model_page = "https://huggingface.co/jannaiklaas/models/tree/main"
