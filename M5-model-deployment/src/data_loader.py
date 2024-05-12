@@ -15,7 +15,7 @@ from sklearn.model_selection import train_test_split
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(ROOT_DIR)
 
-CONF_FILE = os.path.join(ROOT_DIR, 'settings.json')
+CONF_FILE = os.path.join(ROOT_DIR, 'config/settings.json')
 # Load configuration settings from JSON
 with open(CONF_FILE, "r") as file:
     conf = json.load(file)
@@ -128,29 +128,35 @@ def load_split_data() -> None:
     # Read and collect data
     for file in glob.iglob(path_yes):
         img = cv2.imread(file)
-        tumor.append((img, 1))
+        tumor.append(img)
 
     for file in glob.iglob(path_no):
         img = cv2.imread(file)
-        no_tumor.append((img, 0))
+        no_tumor.append(img)
 
     # Shuffle and split
     all_data = tumor + no_tumor
-    X = np.array([item[0] for item in all_data])
-    y = np.array([item[1] for item in all_data])
-    X_shuffled, y_shuffled = shuffle(X, y, random_state=conf['general']['seed_value'])
-    X_train, X_inference, y_train, y_inference = train_test_split(X_shuffled, 
-                                                                  y_shuffled, 
-                                                                  test_size=conf['inference']['infer_size'], 
-                                                                  random_state=conf['general']['seed_value'])
-    logger.info(f"Training set contains {X_train.shape[0]} images")
-    logger.info(f"Inference set contains {X_inference.shape[0]} images")
+    labels = [1] * len(tumor) + [0] * len(no_tumor)
+    X_shuffled, y_shuffled = shuffle(all_data, labels, random_state=conf['general']['seed_value'])
+    X_train, X_inference = train_test_split(X_shuffled, 
+                                            test_size=conf['inference']['infer_size'], 
+                                            random_state=conf['general']['seed_value'])
+    
+    logger.info(f"Training set contains {len(X_train)} images")
+    logger.info(f"Inference set contains {len(X_inference)} images")
 
-    # Save
-    for name, dataset, directory in [("train", (X_train, y_train), TRAIN_DIR), ("inference", (X_inference, y_inference), INFERENCE_DIR)]:
-        np.save(os.path.join(directory, f"{name}_images.npy"), dataset[0])
-        np.save(os.path.join(directory, f"{name}_labels.npy"), dataset[1])
-        logger.info(f"Saved {name} data and labels to {directory}")
+    # Save training data to .npy files
+    np.save(os.path.join(TRAIN_DIR, "train_images.npy"), X_train)
+    np.save(os.path.join(TRAIN_DIR, "train_labels.npy"), y_shuffled[:len(X_train)])
+    logger.info(f"Saved training data and labels to {TRAIN_DIR}")
+    os.makedirs(INFERENCE_DIR, exist_ok=True)
+
+    for i, img in enumerate(X_inference):
+        filename = f"{i}.png"
+        cv2.imwrite(os.path.join(INFERENCE_DIR, filename), img)
+
+    logger.info(f"Saved inference images to {INFERENCE_DIR}")
+
 
 def main() -> None:
     """Main method."""

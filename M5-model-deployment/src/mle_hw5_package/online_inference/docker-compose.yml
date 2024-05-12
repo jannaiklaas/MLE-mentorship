@@ -14,8 +14,8 @@ services:
       context: ../../../
       dockerfile: ./src/mle_hw5_package/online_inference/client/Dockerfile
       args:
-        IMAGE_PATH: ${IMAGE_PATH:-"yes/Y19.jpg"}
+        IMAGE_PATH: ${IMAGE_PATH}
     depends_on:
       - server
     environment:
-      - IMAGE_PATH=${IMAGE_PATH}
+      - IMAGE_PATH=${IMAGE_PATH:-inference_images/5.png}

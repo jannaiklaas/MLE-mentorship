@@ -16,15 +16,14 @@ os.path.dirname(
                     os.path.abspath(__file__))))))
 sys.path.append(ROOT_DIR)
 
-CONF_FILE = os.path.join(ROOT_DIR, 'settings.json')
+CONF_FILE = os.path.join(ROOT_DIR, 'config/settings.json')
 
 # Load configuration settings from JSON
 with open(CONF_FILE, "r") as file:
     conf = json.load(file)
 
 DATA_DIR = os.path.join(ROOT_DIR, conf['directories']['data'])
-RAW_DATA_DIR = os.path.join(DATA_DIR, "raw")
-DEFAULT_EXAMPLE = "yes/Y19.jpg"
+DEFAULT_EXAMPLE = "inference_images/5.png"
 
 # Decide the API URL based on the environment variable
 if os.getenv("DOCKER_ENV") == "TRUE":
@@ -35,12 +34,15 @@ else:
 # Setup command-line argument parsing
 parser = argparse.ArgumentParser(description="Send an image to the Keras REST API for prediction")
 parser.add_argument("-i", "--image", type=str, default=DEFAULT_EXAMPLE,
-                    help="path to the image file relative to the 'raw' data directory")
+                    help="absolute path to the image file")
 args = parser.parse_args()
 
 if args.image==DEFAULT_EXAMPLE: 
     IMAGE_PATH = os.getenv("IMAGE_PATH", DEFAULT_EXAMPLE)
-    IMAGE_PATH = os.path.join(RAW_DATA_DIR, IMAGE_PATH)
+    if IMAGE_PATH=="" or IMAGE_PATH==None:
+        IMAGE_PATH = os.path.join(DATA_DIR, DEFAULT_EXAMPLE)
+    else: 
+        IMAGE_PATH = os.path.join(DATA_DIR, IMAGE_PATH)
 else:
     IMAGE_PATH = args.image
 
@@ -58,7 +60,7 @@ def wait_for_server(url, image_path, retries=5, delay=10):
 # Load the input image and construct the payload for the request
 def send_request(url, image_path):
     with open(image_path, "rb") as image_file:
-        payload = {"file": (os.path.basename(image_path), image_file, 'image/jpeg')}
+        payload = {"file": (os.path.basename(image_path), image_file, 'image/jpeg/png/jpg')}
         try:
             response = requests.post(url, files=payload)
             return response

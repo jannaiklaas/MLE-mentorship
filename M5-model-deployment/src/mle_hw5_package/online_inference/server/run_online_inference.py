@@ -17,7 +17,7 @@ os.path.dirname(
                     os.path.abspath(__file__))))))
 sys.path.append(ROOT_DIR)
 
-CONF_FILE = os.path.join(ROOT_DIR, 'settings.json')
+CONF_FILE = os.path.join(ROOT_DIR, 'config/settings.json')
 MODEL_DIR = os.path.join(ROOT_DIR, 'src/mle_hw5_package/models')
 
 
@@ -63,7 +63,7 @@ def predict():
             raise ValueError("Image decoding failed")
 
         np.save(temp_path, np.array([image]))
-        processed_images = preprocess_images(temp_path)
+        processed_images = preprocess_images(images_path=temp_path)
         prediction = model.predict(np.array(processed_images))
         return jsonify(prediction.tolist())
     except Exception as e:

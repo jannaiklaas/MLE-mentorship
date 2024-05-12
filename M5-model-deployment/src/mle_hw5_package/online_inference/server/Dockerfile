@@ -9,7 +9,7 @@ COPY ./src/mle_hw5_package/online_inference/server/ /app/src/mle_hw5_package/onl
 COPY ./src/mle_hw5_package/models/ /app/src/mle_hw5_package/models/
 COPY ./src/mle_hw5_package/preprocess.py /app/src/mle_hw5_package/
 COPY ./src/mle_hw5_package/utils.py /app/src/mle_hw5_package/
-COPY ./settings.json /app/
+COPY ./config/settings.json /app/config/
 COPY ./requirements.txt /app/
 
 RUN apt-get update && apt-get install -y \

@@ -9,17 +9,17 @@ from tensorflow.keras.preprocessing.image import ImageDataGenerator
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.append(ROOT_DIR)
 
-CONF_FILE = os.path.join(ROOT_DIR, 'settings.json')
+CONF_FILE = os.path.join(ROOT_DIR, 'config/settings.json')
 
 # Load configuration settings from JSON
 with open(CONF_FILE, "r") as file:
     conf = json.load(file)
 
-def preprocess_images(images_path):
+def preprocess_images(images_path=None, images_array=None):
     logging.info("Preprocessing images...")
     X_cropped = []
     output_size = tuple(conf['model']['input_shape'][:-1])
-    X = np.load(images_path, allow_pickle=True)
+    X = np.load(images_path, allow_pickle=True) if images_path!=None else images_array
     for image in X:
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)  # Changing the color from BGR to RGB
         image = cv2.resize(image, output_size)
@@ -29,28 +29,21 @@ def preprocess_images(images_path):
     return X_cropped / conf['preprocess']['max_binary_value']  # Normalize the images
 
 def crop_brain_region(image, size):
-    # Convert the image to grayscale
     gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
-    # Apply Gaussian blur to smooth the image and reduce noise
-    gray = cv2.GaussianBlur(gray, conf['preprocess']['blur_kernel'], 
-                            conf['preprocess']['blur_sigma'])
-    # Threshold the image to create a binary mask
-    thresh = cv2.threshold(gray, conf['preprocess']['threshold_value'], 
-                           conf['preprocess']['max_binary_value'], cv2.THRESH_BINARY)[1]
-    # Perform morphological operations to remove noise
+    gray = cv2.GaussianBlur(gray, conf['preprocess']['blur_kernel'], conf['preprocess']['blur_sigma'])
+    _, thresh = cv2.threshold(gray, conf['preprocess']['threshold_value'], conf['preprocess']['max_binary_value'], cv2.THRESH_BINARY)
     thresh = cv2.erode(thresh, None, iterations=conf['preprocess']['erode_iter'])
     thresh = cv2.dilate(thresh, None, iterations=conf['preprocess']['dilate_iter'])
-    # Find contours in the binary mask
-    contours, _ = cv2.findContours(thresh.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    # Assume the brain part of the image has the largest contour
-    c = max(contours, key=cv2.contourArea)
-    # Get the bounding rectangle of the brain part
-    x, y, w, h = cv2.boundingRect(c)
-    # Crop the image around the bounding rectangle
-    cropped_image = image[y:y + h, x:x + w]
-    # Resize the cropped image to the needed size
-    resized_image = cv2.resize(cropped_image, size)
-    return resized_image  # Return only what's necessary
+    contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    if contours:
+        c = max(contours, key=cv2.contourArea)
+        x, y, w, h = cv2.boundingRect(c)
+        cropped_image = image[y:y+h, x:x+w]
+        return cv2.resize(cropped_image, size)
+    else:
+        return cv2.resize(image, size)
+ 
 
 def augment_data(X_train, y_train, X_val, y_val):
     logging.info(f"Applying data augmentation...")

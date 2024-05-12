@@ -4,3 +4,5 @@ requests==2.31.0
 tensorflow==2.16.1
 opencv-python==4.9.0.80
 Flask==2.2.5
+pandas==1.5.3
+apache-airflow==2.9.0
