@@ -13,6 +13,9 @@ mlruns/
 mlartifacts/
 airflow-data/
 artifacts/
+venv/
+batch_predictions/
+dist/
 
 # File Extensions
 *.csv
