@@ -1,0 +1,20 @@
+stages:
+  process:
+    cmd: python process_data.py
+    deps:
+    - process_data.py
+    - data/data_raw.csv
+    outs:
+    - data/processed/test_processed.npz
+    - data/processed/train_processed.npz
+  train:
+    cmd: python train.py
+    deps:
+    - train.py
+    - data/processed/test_processed.npz
+    - data/processed/train_processed.npz
+    outs:
+    - metrics/confusion_matrix.png
+    metrics:
+    - metrics/metrics.json:
+        cache: false

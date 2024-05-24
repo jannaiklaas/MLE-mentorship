@@ -1,0 +1,46 @@
+schema: '2.0'
+stages:
+  process:
+    cmd: python process_data.py
+    deps:
+    - path: data/data_raw.csv
+      hash: md5
+      md5: a57ebd7376e5e71c84aedc1205c300dc
+      size: 53054376
+    - path: process_data.py
+      hash: md5
+      md5: a51b794b80691c54477e4d6a3fd83984
+      size: 5922
+    outs:
+    - path: data/processed/test_processed.npz
+      hash: md5
+      md5: 0e0e3523796b355632530e5db0d7c98d
+      size: 3487117
+    - path: data/processed/train_processed.npz
+      hash: md5
+      md5: 3455dc689ea16befdc5df3ac7695db3b
+      size: 27973729
+  train:
+    cmd: python train.py
+    deps:
+    - path: data/processed/test_processed.npz
+      hash: md5
+      md5: 0e0e3523796b355632530e5db0d7c98d
+      size: 3487117
+    - path: data/processed/train_processed.npz
+      hash: md5
+      md5: 3455dc689ea16befdc5df3ac7695db3b
+      size: 27973729
+    - path: train.py
+      hash: md5
+      md5: fdaa9e43db67aeebb705571ab14b2417
+      size: 3191
+    outs:
+    - path: metrics/confusion_matrix.png
+      hash: md5
+      md5: f1b8d5fe73b19e65174c1cc556aea68d
+      size: 21955
+    - path: metrics/metrics.json
+      hash: md5
+      md5: 6de69d2d9fa9d8e256694939de292f53
+      size: 202
