@@ -17,7 +17,7 @@ jobs:
           git config --global --add safe.directory '*'
 
           git fetch --prune
-          dvc metrics diff --md master > report.md
+          dvc metrics diff --md main > report.md
 
           # Add figure to the report
           echo "## Confusion matrix"
