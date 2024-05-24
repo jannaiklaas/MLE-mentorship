@@ -59,7 +59,7 @@ class TextPreprocessor:
     def __init__(self, use_lemmatization=True, vectorization_type=None):
         self.use_lemmatization = use_lemmatization
         self.vectorization_type = vectorization_type
-        self.stop_words = set(stopwords.words('english')) - {'not'}
+        self.stop_words = set(stopwords.words('english')).union({'movie', 'movies', 'film', 'films'}) - {'not'}
         self.lemmatizer = WordNetLemmatizer() if use_lemmatization else None
         self.stemmer = PorterStemmer() if not use_lemmatization else None
         self.vectorizer = None
