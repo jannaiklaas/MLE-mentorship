@@ -6,7 +6,7 @@ __pycache__/
 .pytest_cache
 
 # Directories
-data/
+#data/
 models/
 results/
 mlruns/
@@ -16,11 +16,16 @@ artifacts/
 venv/
 batch_predictions/
 dist/
+archive/
 
 # File Extensions
 *.csv
 *.pickle
 *.pyc
+*.npy
+*.jpg
+*.jpeg
+*.png
 
 # Environment Variables
 .env

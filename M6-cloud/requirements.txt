@@ -2,3 +2,4 @@ pandas==1.5.3
 torch==2.1.0
 flask==2.2.5
 boto3
+gunicorn

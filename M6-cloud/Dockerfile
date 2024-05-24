@@ -1,24 +1,26 @@
 FROM python:3.10
 
 # Install necessary packages
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     wget \
     curl \
+    nginx \
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-
-# Create directories for SageMaker
-RUN mkdir -p /opt/ml/code /opt/ml/model
-
-# Copy the application code
-COPY ./app /opt/ml/code
-COPY requirements.txt /opt/ml
+COPY requirements.txt /opt
 
 # Install pip packages
-RUN pip install --no-cache-dir -r /opt/ml/requirements.txt
+RUN pip install --no-cache-dir -r /opt/requirements.txt
+
+ENV PYTHONUNBUFFERED=TRUE
+ENV PYTHONDONTWRITEBYTECODE=TRUE
+ENV PATH="/opt/program:${PATH}"
 
 # Set the working directory
-WORKDIR /opt/ml/code
+COPY app /opt/program
+COPY models /opt/program/models
+WORKDIR /opt/program
 
 # Expose the port the app runs on
 EXPOSE 8080
