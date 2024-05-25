@@ -17,6 +17,7 @@ venv/
 batch_predictions/
 dist/
 archive/
+metrics/
 
 # File Extensions
 *.csv
@@ -26,6 +27,7 @@ archive/
 *.jpg
 *.jpeg
 *.png
+*.npz
 
 # Environment Variables
 .env
