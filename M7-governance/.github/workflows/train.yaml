@@ -1,12 +1,14 @@
 name: sentiment-analysis
-on: [push]
+on: [push, pull_request]
 jobs:
   run:
     permissions: write-all
-    runs-on: [ubuntu-latest]
+    runs-on: ubuntu-latest
     container: docker://dvcorg/cml-py3:latest
     steps:
       - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0  # Fetch all history for all branches and tags
       - name: cml_run
         env:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
@@ -17,10 +19,10 @@ jobs:
           git config --global --add safe.directory '*'
 
           git fetch --prune
-          dvc metrics diff --md main > report.md
+          BASE_BRANCH=$(git merge-base origin/main HEAD)
+          dvc metrics diff --md $BASE_BRANCH > report.md
 
           # Add figure to the report
-          echo "## Confusion matrix"
+          echo "## Confusion matrix" >> report.md
           cml-publish metrics/confusion_matrix.png --md >> report.md
           cml comment create report.md
-
