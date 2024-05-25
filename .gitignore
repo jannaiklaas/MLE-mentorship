@@ -17,6 +17,7 @@ venv/
 batch_predictions/
 dist/
 archive/
+metrics/
 
 # File Extensions
 *.csv
