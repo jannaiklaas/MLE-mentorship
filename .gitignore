@@ -17,7 +17,6 @@ venv/
 batch_predictions/
 dist/
 archive/
-metrics/
 
 # File Extensions
 *.csv
@@ -34,4 +33,3 @@ metrics/
 
 # Installer logs
 pip-log.txt
-metrics.json
