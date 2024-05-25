@@ -33,4 +33,4 @@ archive/
 
 # Installer logs
 pip-log.txt
-metrics.json
+#metrics.json
