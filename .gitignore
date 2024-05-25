@@ -34,3 +34,4 @@ metrics/
 
 # Installer logs
 pip-log.txt
+metrics.json
