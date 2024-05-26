@@ -1,17 +1,19 @@
 name: sentiment-analysis
-on: [push, pull_request]
+on: [push]
 jobs:
   run:
     permissions: write-all
     runs-on: ubuntu-latest
     container: docker://dvcorg/cml-py3:latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+      - uses: iterative/setup-cml@v1
         with:
           fetch-depth: 0  # Fetch all history for all branches and tags
-      - name: cml_run
+      - name: Train model
         env:
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           pip install -r requirements.txt
           dvc pull
