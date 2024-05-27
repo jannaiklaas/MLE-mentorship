@@ -137,11 +137,11 @@ def main():
     df = load_data(RAW_DATA_PATH)
     df = remove_duplicates(df)
     train, test = split_data(df)
-    preprocessor = TextPreprocessor(use_lemmatization=True, vectorization_type="tf-idf")
+    preprocessor = TextPreprocessor(use_lemmatization=False, vectorization_type="tf-idf")
     X_train, y_train, _ = preprocessor.preprocess(train, fit_vectorizer=True)
     X_test, y_test, _ = preprocessor.preprocess(test, fit_vectorizer=False)
     save_dataset(X_train, y_train, PROCESSED_DATA_DIR, 'train_processed')
     save_dataset(X_test, y_test, PROCESSED_DATA_DIR, 'test_processed')
 
 if __name__ == "__main__":
-    main()
+    main()    
