@@ -26,4 +26,4 @@ WORKDIR /opt/program
 EXPOSE 8080
 
 # Set the entry point to start the Flask application
-ENTRYPOINT ["python", "serve"]
+ENTRYPOINT ["python", "predictor.py"]
