@@ -1,4 +1,3 @@
-# Exp-1
 import re
 import sys
 import os
@@ -60,7 +59,7 @@ class TextPreprocessor:
     def __init__(self, use_lemmatization=True, vectorization_type=None):
         self.use_lemmatization = use_lemmatization
         self.vectorization_type = vectorization_type
-        self.stop_words = set(stopwords.words('english')).union({'movie', 'movies', 'film', 'films'}) - {'not'}
+        self.stop_words = set(stopwords.words('english')) - {'not'}
         self.lemmatizer = WordNetLemmatizer() if use_lemmatization else None
         self.stemmer = PorterStemmer() if not use_lemmatization else None
         self.vectorizer = None
@@ -137,11 +136,11 @@ def main():
     df = load_data(RAW_DATA_PATH)
     df = remove_duplicates(df)
     train, test = split_data(df)
-    preprocessor = TextPreprocessor(use_lemmatization=False, vectorization_type="tf-idf")
+    preprocessor = TextPreprocessor(use_lemmatization=True, vectorization_type="ngrams")
     X_train, y_train, _ = preprocessor.preprocess(train, fit_vectorizer=True)
     X_test, y_test, _ = preprocessor.preprocess(test, fit_vectorizer=False)
     save_dataset(X_train, y_train, PROCESSED_DATA_DIR, 'train_processed')
     save_dataset(X_test, y_test, PROCESSED_DATA_DIR, 'test_processed')
 
 if __name__ == "__main__":
-    main()    
+    main()
