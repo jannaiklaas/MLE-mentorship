@@ -22,8 +22,3 @@ COPY app /opt/program
 COPY models /opt/program/models
 WORKDIR /opt/program
 
-# Expose the port the app runs on
-EXPOSE 8080
-
-# Set the entry point to start the Flask application
-ENTRYPOINT ["python", "predictor.py"]

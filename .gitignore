@@ -33,4 +33,5 @@ archive/
 
 # Installer logs
 pip-log.txt
-#metrics.json
+
+!M6-cloud/models
