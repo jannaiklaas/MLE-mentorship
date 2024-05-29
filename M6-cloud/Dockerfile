@@ -1,4 +1,4 @@
-FROM python:3.10
+FROM python:3.10-slim
 
 # Install necessary packages
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -19,6 +19,7 @@ ENV PATH="/opt/program:${PATH}"
 
 # Set the working directory
 COPY app /opt/program
-COPY models /opt/program/models
 WORKDIR /opt/program
 
+# Ensure the main script is executable
+RUN chmod +x /opt/program/serve
