@@ -35,3 +35,4 @@ archive/
 pip-log.txt
 
 !M6-cloud/models
+!M6-cloud/data/iris_inference_data.csv

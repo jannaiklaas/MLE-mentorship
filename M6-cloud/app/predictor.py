@@ -12,13 +12,7 @@ class Predictor:
 
     def load_model(self):
         if not os.path.isfile(self.model_path):
-            print(f"Model file not found at {self.model_path}. Attempting to retrieve the backup model locally...")
-            if not os.path.isfile(self.backup_model_path):
-                raise FileNotFoundError("No model available.")
-            else:
-                model = torch.jit.load(self.backup_model_path)
-                model.eval()
-                return model
+            raise FileNotFoundError("No model available.")
         model = torch.jit.load(self.model_path)
         model.eval()
         return model
